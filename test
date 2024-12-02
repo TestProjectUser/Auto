@@ -1,0 +1,109 @@
+f0To download a file to a specific location using Selenium in Java with WebDriverManager and the Edge browser, you need to set up the Edge browser with a custom download directory. Below is a sample code snippet:
+
+Prerequisites
+
+1. Add the following dependencies in your pom.xml (if using Maven):
+
+<dependencies>
+    <!-- Selenium Java -->
+    <dependency>
+        <groupId>org.seleniumhq.selenium</groupId>
+        <artifactId>selenium-java</artifactId>
+        <version>4.14.0</version> <!-- Replace with the latest version -->
+    </dependency>
+
+    <!-- WebDriverManager -->
+    <dependency>
+        <groupId>io.github.bonigarcia</groupId>
+        <artifactId>webdrivermanager</artifactId>
+        <version>5.5.3</version> <!-- Replace with the latest version -->
+    </dependency>
+</dependencies>
+
+
+2. Install Microsoft Edge WebDriver (WebDriverManager can handle this).
+
+
+
+
+---
+
+Code Example
+
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.edge.EdgeOptions;
+import io.github.bonigarcia.wdm.WebDriverManager;
+
+import java.io.File;
+
+public class DownloadFileExample {
+    public static void main(String[] args) {
+        // Set up WebDriverManager for Edge
+        WebDriverManager.edgedriver().setup();
+
+        // Set download directory
+        String downloadFilePath = System.getProperty("user.dir") + File.separator + "downloads";
+
+        // Configure Edge options for custom download directory
+        EdgeOptions options = new EdgeOptions();
+        options.addArguments("--disable-popup-blocking");
+        options.addArguments("--headless=new"); // Optional, for headless mode
+
+        // Set download behavior via experimental options
+        var prefs = new java.util.HashMap<String, Object>();
+        prefs.put("download.default_directory", downloadFilePath);
+        prefs.put("download.prompt_for_download", false);
+        prefs.put("download.directory_upgrade", true);
+        prefs.put("safebrowsing.enabled", true);
+        options.setExperimentalOption("prefs", prefs);
+
+        // Initialize WebDriver
+        WebDriver driver = new EdgeDriver(options);
+
+        try {
+            // Navigate to the webpage with the file to download
+            driver.get("https://example.com/file-download");
+
+            // Locate and click the download button/link (update selector accordingly)
+            driver.findElement(By.id("downloadButton")).click();
+
+            // Wait for the file to download (use proper wait mechanisms)
+            Thread.sleep(5000); // Adjust sleep time as needed
+
+            // Verify the file exists
+            File downloadedFile = new File(downloadFilePath + File.separator + "exampleFileName.extension");
+            if (downloadedFile.exists()) {
+                System.out.println("File downloaded successfully!");
+            } else {
+                System.out.println("File download failed!");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Close the browser
+            driver.quit();
+        }
+    }
+}
+
+
+---
+
+Key Points
+
+1. Download Path: The download.default_directory is set in Edge's preferences.
+
+
+2. File Existence Check: Ensure the file name matches the downloaded file.
+
+
+3. EdgeOptions: Customize the browser configuration as required.
+
+
+4. Wait Mechanism: Use Thread.sleep or a better approach like WebDriverWait to ensure the file download is complete before verification.
+
+
+
+Replace https://example.com/file-download and exampleFileName.extension with your actual URL and file name.
+
