@@ -1,47 +1,60 @@
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.edge.EdgeOptions;
 import org.openqa.selenium.devtools.DevTools;
-import org.openqa.selenium.devtools.v114.network.Network;
-import org.openqa.selenium.devtools.v114.network.model.Response;
-import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.devtools.v127.network.Network; // Adjust version based on Edge version
 
-public class EdgeCDPExample {
+import java.time.Duration;
+
+public class EdgeNetworkInterception {
 
     public static void main(String[] args) {
-        // Setup WebDriver for Edge
+        // Set up WebDriver for Edge
         WebDriverManager.edgedriver().setup();
 
-        // Set up Edge options
+        // Set EdgeOptions to include necessary arguments
         EdgeOptions options = new EdgeOptions();
+        options.addArguments("--remote-debugging-port=9222"); // Enable DevTools debugging
+        options.addArguments("--no-sandbox"); // Prevent sandboxing issues
+        options.addArguments("--disable-dev-shm-usage"); // Prevent shared memory issues
+        options.addArguments("--disable-gpu"); // Optional: Disable GPU rendering
+        options.addArguments("--headless=new"); // Optional: Run in headless mode (remove if not needed)
+
+        // Initialize the Edge driver
         WebDriver driver = new EdgeDriver(options);
 
         try {
-            // Enable network interception using DevTools Protocol
+            // Enable DevTools Protocol
             DevTools devTools = ((EdgeDriver) driver).getDevTools();
             devTools.createSession();
+
+            // Enable network interception
             devTools.send(Network.enable());
+
+            // Add listener to capture network responses
             devTools.addListener(Network.responseReceived(), response -> {
-                // Check if the response is the file download
-                if (response.getResponse().getUrl().contains("your-file-name.extension")) {
-                    System.out.println("Intercepted file URL: " + response.getResponse().getUrl());
-                    // You can then proceed to download or log the URL
-                }
+                String url = response.getResponse().getUrl();
+                System.out.println("Intercepted URL: " + url);
             });
 
-            // Navigate to the SharePoint site
+            // Navigate to the target SharePoint site
             driver.get("https://your-sharepoint-site-url");
 
-            // Trigger file download (make sure to adjust this part based on how the download is triggered)
-            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name')]")).click();
+            // Wait for the file link to be clickable
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
 
-            // Wait for the download to complete
+            // Click the file download link (adjust locator as needed)
+            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name.extension')]")).click();
+
+            // Wait for the network interception to capture the response
             Thread.sleep(5000);
 
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
+            // Close the driver
             driver.quit();
         }
     }
