@@ -1,20 +1,31 @@
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import io.github.bonigarcia.wdm.WebDriverManager;
+import io.github.seleniumwire.SeleniumWireDriver;
+import org.openqa.selenium.edge.EdgeOptions;
+import java.util.Map;
 
-public class DownloadFile {
+public class InterceptDownload {
     public static void main(String[] args) {
-        String fileUrl = "https://your-sharepoint-site-url/path-to-file/your-file-name.extension";
-        String destinationPath = "downloads/your-file-name.extension";
+        WebDriverManager.edgedriver().setup();
+        
+        EdgeOptions options = new EdgeOptions();
+        SeleniumWireDriver driver = new SeleniumWireDriver(options);
 
-        try (InputStream in = new URL(fileUrl).openStream()) {
-            Files.copy(in, Paths.get(destinationPath));
-            System.out.println("File downloaded successfully to " + destinationPath);
-        } catch (IOException e) {
-            e.printStackTrace();
+        try {
+            driver.get("https://your-sharepoint-site-url");
+
+            // Simulate actions to trigger the file download
+            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name')]")).click();
+
+            // Intercept network requests
+            driver.getDevTools().createSession();
+            driver.getDevTools().addListener(Network.responseReceived(), response -> {
+                if (response.getResponse().getUrl().contains("your-file-name.extension")) {
+                    System.out.println("File URL: " + response.getResponse().getUrl());
+                }
+            });
+
+        } finally {
+            driver.quit();
         }
     }
 }
