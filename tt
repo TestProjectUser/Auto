@@ -1,75 +1,20 @@
-simport org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.edge.EdgeDriver;
-import org.openqa.selenium.edge.EdgeOptions;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
-import io.github.bonigarcia.wdm.WebDriverManager;
-
-import java.io.File;
-import java.util.HashMap;
-import java.time.Duration;
-
-public class SharePointFileDownload {
+public class DownloadFile {
     public static void main(String[] args) {
-        WebDriverManager.edgedriver().setup();
-        String downloadFilePath = System.getProperty("user.dir") + File.separator + "downloads";
+        String fileUrl = "https://your-sharepoint-site-url/path-to-file/your-file-name.extension";
+        String destinationPath = "downloads/your-file-name.extension";
 
-        EdgeOptions options = new EdgeOptions();
-        HashMap<String, Object> prefs = new HashMap<>();
-        prefs.put("download.default_directory", downloadFilePath);
-        prefs.put("download.prompt_for_download", false);
-        prefs.put("download.directory_upgrade", true);
-        options.setExperimentalOption("prefs", prefs);
-
-        WebDriver driver = new EdgeDriver(options);
-
-        try {
-            driver.get("https://your-sharepoint-site-url");
-            
-            // Wait for file download link
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-            WebElement fileDownloadLink = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//a[contains(text(), 'your-file-name')]")));
-
-            JavascriptExecutor jsExecutor = (JavascriptExecutor) driver;
-
-            // Attempt to retrieve the href attribute
-            String fileUrl = (String) jsExecutor.executeScript("return arguments[0].getAttribute('href');", fileDownloadLink);
-            System.out.println("File URL: " + fileUrl);
-
-            if (fileUrl == null || fileUrl.isEmpty()) {
-                // Handle case where href is null
-                System.out.println("File URL is null. Trying onclick logic.");
-
-                // Extract onclick attribute
-                String onclickValue = (String) jsExecutor.executeScript("return arguments[0].getAttribute('onclick');", fileDownloadLink);
-                System.out.println("Onclick attribute: " + onclickValue);
-
-                // Execute the onclick logic directly
-                jsExecutor.executeScript("arguments[0].click();", fileDownloadLink);
-
-                // Wait for the file to download (use appropriate wait mechanism)
-                Thread.sleep(5000);
-            } else {
-                // Open the file URL in a new tab to trigger download
-                jsExecutor.executeScript("window.open(arguments[0], '_blank');", fileUrl);
-                Thread.sleep(5000);
-            }
-
-            // Verify download
-            File downloadedFile = new File(downloadFilePath + File.separator + "your-file-name.extension");
-            if (downloadedFile.exists()) {
-                System.out.println("File downloaded successfully!");
-            } else {
-                System.out.println("File download failed.");
-            }
-        } catch (Exception e) {
+        try (InputStream in = new URL(fileUrl).openStream()) {
+            Files.copy(in, Paths.get(destinationPath));
+            System.out.println("File downloaded successfully to " + destinationPath);
+        } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            driver.quit();
         }
     }
 }
