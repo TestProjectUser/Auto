@@ -2,59 +2,44 @@ import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.edge.EdgeDriver;
-import org.openqa.selenium.edge.EdgeOptions;
-import org.openqa.selenium.devtools.DevTools;
-import org.openqa.selenium.devtools.v127.network.Network; // Adjust version based on Edge version
 
-import java.time.Duration;
+import java.awt.*;
+import java.awt.event.KeyEvent;
 
-public class EdgeNetworkInterception {
+public class SaveFileUsingRobot {
 
     public static void main(String[] args) {
-        // Set up WebDriver for Edge
+        // Set up WebDriver
         WebDriverManager.edgedriver().setup();
-
-        // Set EdgeOptions to include necessary arguments
-        EdgeOptions options = new EdgeOptions();
-        options.addArguments("--remote-debugging-port=9222"); // Enable DevTools debugging
-        options.addArguments("--no-sandbox"); // Prevent sandboxing issues
-        options.addArguments("--disable-dev-shm-usage"); // Prevent shared memory issues
-        options.addArguments("--disable-gpu"); // Optional: Disable GPU rendering
-        options.addArguments("--headless=new"); // Optional: Run in headless mode (remove if not needed)
-
-        // Initialize the Edge driver
-        WebDriver driver = new EdgeDriver(options);
+        WebDriver driver = new EdgeDriver();
 
         try {
-            // Enable DevTools Protocol
-            DevTools devTools = ((EdgeDriver) driver).getDevTools();
-            devTools.createSession();
-
-            // Enable network interception
-            devTools.send(Network.enable());
-
-            // Add listener to capture network responses
-            devTools.addListener(Network.responseReceived(), response -> {
-                String url = response.getResponse().getUrl();
-                System.out.println("Intercepted URL: " + url);
-            });
-
-            // Navigate to the target SharePoint site
+            // Navigate to SharePoint site
             driver.get("https://your-sharepoint-site-url");
 
-            // Wait for the file link to be clickable
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-
-            // Click the file download link (adjust locator as needed)
+            // Click the file link
             driver.findElement(By.xpath("//a[contains(text(), 'your-file-name.extension')]")).click();
 
-            // Wait for the network interception to capture the response
-            Thread.sleep(5000);
+            // Use Robot to handle Save As dialog
+            Robot robot = new Robot();
+
+            // Simulate pressing "Alt + S" to save the file
+            robot.delay(2000); // Wait for dialog to appear
+            robot.keyPress(KeyEvent.VK_ALT);
+            robot.keyPress(KeyEvent.VK_S);
+            robot.keyRelease(KeyEvent.VK_S);
+            robot.keyRelease(KeyEvent.VK_ALT);
+
+            // Simulate pressing Enter
+            robot.delay(1000); // Wait for save to complete
+            robot.keyPress(KeyEvent.VK_ENTER);
+            robot.keyRelease(KeyEvent.VK_ENTER);
+
+            System.out.println("File download triggered successfully.");
 
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            // Close the driver
             driver.quit();
         }
     }
