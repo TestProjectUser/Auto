@@ -1,29 +1,46 @@
 import io.github.bonigarcia.wdm.WebDriverManager;
-import io.github.seleniumwire.SeleniumWireDriver;
+import org.openqa.selenium.By;
+import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.edge.EdgeOptions;
-import java.util.Map;
+import org.openqa.selenium.devtools.DevTools;
+import org.openqa.selenium.devtools.v114.network.Network;
+import org.openqa.selenium.devtools.v114.network.model.Response;
+import org.openqa.selenium.WebDriver;
 
-public class InterceptDownload {
+public class EdgeCDPExample {
+
     public static void main(String[] args) {
+        // Setup WebDriver for Edge
         WebDriverManager.edgedriver().setup();
-        
+
+        // Set up Edge options
         EdgeOptions options = new EdgeOptions();
-        SeleniumWireDriver driver = new SeleniumWireDriver(options);
+        WebDriver driver = new EdgeDriver(options);
 
         try {
-            driver.get("https://your-sharepoint-site-url");
-
-            // Simulate actions to trigger the file download
-            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name')]")).click();
-
-            // Intercept network requests
-            driver.getDevTools().createSession();
-            driver.getDevTools().addListener(Network.responseReceived(), response -> {
+            // Enable network interception using DevTools Protocol
+            DevTools devTools = ((EdgeDriver) driver).getDevTools();
+            devTools.createSession();
+            devTools.send(Network.enable());
+            devTools.addListener(Network.responseReceived(), response -> {
+                // Check if the response is the file download
                 if (response.getResponse().getUrl().contains("your-file-name.extension")) {
-                    System.out.println("File URL: " + response.getResponse().getUrl());
+                    System.out.println("Intercepted file URL: " + response.getResponse().getUrl());
+                    // You can then proceed to download or log the URL
                 }
             });
 
+            // Navigate to the SharePoint site
+            driver.get("https://your-sharepoint-site-url");
+
+            // Trigger file download (make sure to adjust this part based on how the download is triggered)
+            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name')]")).click();
+
+            // Wait for the download to complete
+            Thread.sleep(5000);
+
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             driver.quit();
         }
