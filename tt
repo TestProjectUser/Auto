@@ -3,47 +3,68 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.edge.EdgeOptions;
 
-import java.time.Duration;
+import java.io.*;
+import java.nio.file.Paths;
+import java.util.Map;
 
-public class SharePointLogin {
+public class SharePointFileProcessor {
 
     public static void main(String[] args) {
         // Set up WebDriver for Edge
         WebDriverManager.edgedriver().setup();
-        WebDriver driver = new EdgeDriver();
+
+        // Specify the download directory
+        String downloadDir = Paths.get(System.getProperty("user.home"), "Downloads", "SharePointFiles").toString();
+
+        // Configure EdgeOptions
+        EdgeOptions options = new EdgeOptions();
+        options.setExperimentalOption("prefs", Map.of(
+            "download.default_directory", downloadDir,
+            "download.prompt_for_download", false,
+            "safebrowsing.enabled", true
+        ));
+
+        WebDriver driver = new EdgeDriver(options);
 
         try {
-            // Navigate to the SharePoint login page
+            // Navigate to SharePoint and log in
             driver.get("https://your-sharepoint-site-url");
+            Thread.sleep(5000); // Adjust based on your login process
 
-            // Wait for the page to load
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+            // Click the file link to download (adjust locator as needed)
+            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]"));
+            fileLink.click();
 
-            // Enter the email address
-            WebElement emailField = driver.findElement(By.id("i0116")); // "i0116" is the email input field ID
-            emailField.sendKeys("your-email@example.com");
-            driver.findElement(By.id("idSIButton9")).click(); // Click "Next"
+            // Wait for download to complete
+            Thread.sleep(10000);
 
-            // Wait for the password page to load
-            Thread.sleep(2000);
+            // Read the downloaded file
+            File downloadedFile = new File(downloadDir + "/example.txt");
+            if (downloadedFile.exists()) {
+                BufferedReader reader = new BufferedReader(new FileReader(downloadedFile));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                reader.close();
 
-            // Enter the password
-            WebElement passwordField = driver.findElement(By.id("i0118")); // "i0118" is the password input field ID
-            passwordField.sendKeys("your-password");
-            driver.findElement(By.id("idSIButton9")).click(); // Click "Sign in"
+                // Modify the content (optional)
+                String newContent = content.toString().toUpperCase(); // Example: Convert to uppercase
 
-            // Handle "Stay signed in" prompt if it appears
-            Thread.sleep(2000);
-            if (driver.findElements(By.id("idSIButton9")).size() > 0) {
-                driver.findElement(By.id("idSIButton9")).click(); // Click "Yes"
+                // Save the modified content to a new file
+                File newFile = new File(downloadDir + "/modified_example.txt");
+                BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
+                writer.write(newContent);
+                writer.close();
+
+                System.out.println("Modified file saved to: " + newFile.getAbsolutePath());
+            } else {
+                System.out.println("Downloaded file not found.");
             }
 
-            // Successfully logged in, navigate to the desired SharePoint page
-            Thread.sleep(5000);
-            driver.get("https://your-sharepoint-site-url/specific-page");
-
-            System.out.println("Successfully logged into SharePoint.");
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
