@@ -1,42 +1,49 @@
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.edge.EdgeDriver;
 
-import java.awt.*;
-import java.awt.event.KeyEvent;
+import java.time.Duration;
 
-public class SaveFileUsingRobot {
+public class SharePointLogin {
 
     public static void main(String[] args) {
-        // Set up WebDriver
+        // Set up WebDriver for Edge
         WebDriverManager.edgedriver().setup();
         WebDriver driver = new EdgeDriver();
 
         try {
-            // Navigate to SharePoint site
+            // Navigate to the SharePoint login page
             driver.get("https://your-sharepoint-site-url");
 
-            // Click the file link
-            driver.findElement(By.xpath("//a[contains(text(), 'your-file-name.extension')]")).click();
+            // Wait for the page to load
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
 
-            // Use Robot to handle Save As dialog
-            Robot robot = new Robot();
+            // Enter the email address
+            WebElement emailField = driver.findElement(By.id("i0116")); // "i0116" is the email input field ID
+            emailField.sendKeys("your-email@example.com");
+            driver.findElement(By.id("idSIButton9")).click(); // Click "Next"
 
-            // Simulate pressing "Alt + S" to save the file
-            robot.delay(2000); // Wait for dialog to appear
-            robot.keyPress(KeyEvent.VK_ALT);
-            robot.keyPress(KeyEvent.VK_S);
-            robot.keyRelease(KeyEvent.VK_S);
-            robot.keyRelease(KeyEvent.VK_ALT);
+            // Wait for the password page to load
+            Thread.sleep(2000);
 
-            // Simulate pressing Enter
-            robot.delay(1000); // Wait for save to complete
-            robot.keyPress(KeyEvent.VK_ENTER);
-            robot.keyRelease(KeyEvent.VK_ENTER);
+            // Enter the password
+            WebElement passwordField = driver.findElement(By.id("i0118")); // "i0118" is the password input field ID
+            passwordField.sendKeys("your-password");
+            driver.findElement(By.id("idSIButton9")).click(); // Click "Sign in"
 
-            System.out.println("File download triggered successfully.");
+            // Handle "Stay signed in" prompt if it appears
+            Thread.sleep(2000);
+            if (driver.findElements(By.id("idSIButton9")).size() > 0) {
+                driver.findElement(By.id("idSIButton9")).click(); // Click "Yes"
+            }
 
+            // Successfully logged in, navigate to the desired SharePoint page
+            Thread.sleep(5000);
+            driver.get("https://your-sharepoint-site-url/specific-page");
+
+            System.out.println("Successfully logged into SharePoint.");
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
