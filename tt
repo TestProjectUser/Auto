@@ -1,59 +1,48 @@
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.edge.EdgeDriver;
-import org.openqa.selenium.edge.EdgeOptions;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.time.Duration;
+import java.util.ArrayList;
 
-public class SharePointFileReaderBrowser {
+public class ReadFileFromNewTab {
 
     public static void main(String[] args) {
-        // Set up WebDriver for Edge
         WebDriverManager.edgedriver().setup();
         WebDriver driver = new EdgeDriver();
 
         try {
-            // Step 1: Log in to SharePoint
+            // Step 1: Log in to SharePoint and navigate to the file link
             driver.get("https://your-sharepoint-site-url");
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+            Thread.sleep(5000); // Adjust for login
 
-            // Enter email
-            WebElement emailField = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("i0116")));
-            emailField.sendKeys("your-email@example.com");
-            driver.findElement(By.id("idSIButton9")).click(); // Next button
+            // Locate and click the file link that opens in a new tab
+            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]")); // Adjust locator
+            fileLink.click();
+            Thread.sleep(3000); // Wait for the new tab to open
 
-            // Enter password
-            WebElement passwordField = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("i0118")));
-            passwordField.sendKeys("your-password");
-            driver.findElement(By.id("idSIButton9")).click(); // Sign in
+            // Step 2: Switch to the new tab
+            ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
+            driver.switchTo().window(tabs.get(1)); // Switch to the second tab
 
-            // Handle "Stay signed in" prompt
-            WebElement staySignedIn = wait.until(ExpectedConditions.elementToBeClickable(By.id("idSIButton9")));
-            staySignedIn.click();
-
-            // Step 2: Navigate to the file on SharePoint
-            driver.get("https://your-sharepoint-site-url/path-to-your-file");
-            Thread.sleep(5000); // Wait for the file preview to load
-
-            // Step 3: Extract content from the file viewer
-            // Example for text files
-            WebElement fileContent = driver.findElement(By.tagName("body")); // Adjust this based on file viewer structure
-            String content = fileContent.getText();
-
-            // Print content
+            // Step 3: Extract content from the file displayed in the new tab
+            // Option 1: Use JavaScript to get the body text
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            String content = (String) js.executeScript("return document.body.innerText;");
             System.out.println("File Content:\n" + content);
 
-            // Optional: Save content to a local file
-            // Save to a new file locally
-            String localFilePath = System.getProperty("user.home") + "/Downloads/copied_file_from_browser.txt";
+            // Optional: Save the content to a local file
+            String localFilePath = System.getProperty("user.home") + "/Downloads/copied_file_from_new_tab.txt";
             try (java.io.FileWriter writer = new java.io.FileWriter(localFilePath)) {
                 writer.write(content);
             }
             System.out.println("Content saved to: " + localFilePath);
+
+            // Step 4: Close the new tab and switch back to the original tab
+            driver.close();
+            driver.switchTo().window(tabs.get(0));
 
         } catch (Exception e) {
             e.printStackTrace();
