@@ -9,16 +9,14 @@ import java.io.*;
 import java.nio.file.Paths;
 import java.util.Map;
 
-public class SharePointFileProcessor {
+public class SharePointFileAutomation {
 
     public static void main(String[] args) {
-        // Set up WebDriver for Edge
+        // Setup WebDriver for Edge
         WebDriverManager.edgedriver().setup();
 
-        // Specify the download directory
+        // Configure EdgeOptions with custom download directory
         String downloadDir = Paths.get(System.getProperty("user.home"), "Downloads", "SharePointFiles").toString();
-
-        // Configure EdgeOptions
         EdgeOptions options = new EdgeOptions();
         options.setExperimentalOption("prefs", Map.of(
             "download.default_directory", downloadDir,
@@ -29,18 +27,35 @@ public class SharePointFileProcessor {
         WebDriver driver = new EdgeDriver(options);
 
         try {
-            // Navigate to SharePoint and log in
+            // Step 1: Log in to SharePoint
             driver.get("https://your-sharepoint-site-url");
-            Thread.sleep(5000); // Adjust based on your login process
+            Thread.sleep(5000); // Adjust as per your login process
 
-            // Click the file link to download (adjust locator as needed)
-            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]"));
+            WebElement emailField = driver.findElement(By.id("i0116")); // Adjust locator as needed
+            emailField.sendKeys("your-email@example.com");
+            driver.findElement(By.id("idSIButton9")).click(); // Click Next
+
+            Thread.sleep(2000); // Wait for password field
+            WebElement passwordField = driver.findElement(By.id("i0118"));
+            passwordField.sendKeys("your-password");
+            driver.findElement(By.id("idSIButton9")).click(); // Click Sign In
+
+            Thread.sleep(3000); // Handle "Stay signed in" prompt
+            WebElement staySignedIn = driver.findElement(By.id("idSIButton9"));
+            if (staySignedIn.isDisplayed()) {
+                staySignedIn.click();
+            }
+
+            // Step 2: Navigate to the file on SharePoint
+            driver.get("https://your-sharepoint-site-url/path-to-your-file");
+            Thread.sleep(5000);
+
+            // Step 3: Click the file link to download it
+            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]")); // Adjust as needed
             fileLink.click();
+            Thread.sleep(10000); // Wait for the download to complete
 
-            // Wait for download to complete
-            Thread.sleep(10000);
-
-            // Read the downloaded file
+            // Step 4: Read the downloaded file
             File downloadedFile = new File(downloadDir + "/example.txt");
             if (downloadedFile.exists()) {
                 BufferedReader reader = new BufferedReader(new FileReader(downloadedFile));
@@ -51,16 +66,14 @@ public class SharePointFileProcessor {
                 }
                 reader.close();
 
-                // Modify the content (optional)
-                String newContent = content.toString().toUpperCase(); // Example: Convert to uppercase
+                System.out.println("File content:\n" + content);
 
-                // Save the modified content to a new file
-                File newFile = new File(downloadDir + "/modified_example.txt");
-                BufferedWriter writer = new BufferedWriter(new FileWriter(newFile));
-                writer.write(newContent);
-                writer.close();
-
-                System.out.println("Modified file saved to: " + newFile.getAbsolutePath());
+                // Save modified content locally (optional)
+                File modifiedFile = new File(downloadDir + "/modified_example.txt");
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(modifiedFile))) {
+                    writer.write(content.toString().toUpperCase()); // Example modification
+                }
+                System.out.println("Modified file saved at: " + modifiedFile.getAbsolutePath());
             } else {
                 System.out.println("Downloaded file not found.");
             }
