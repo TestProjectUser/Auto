@@ -4,79 +4,56 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.edge.EdgeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.*;
-import java.nio.file.Paths;
-import java.util.Map;
+import java.time.Duration;
 
-public class SharePointFileAutomation {
+public class SharePointFileReaderBrowser {
 
     public static void main(String[] args) {
-        // Setup WebDriver for Edge
+        // Set up WebDriver for Edge
         WebDriverManager.edgedriver().setup();
-
-        // Configure EdgeOptions with custom download directory
-        String downloadDir = Paths.get(System.getProperty("user.home"), "Downloads", "SharePointFiles").toString();
-        EdgeOptions options = new EdgeOptions();
-        options.setExperimentalOption("prefs", Map.of(
-            "download.default_directory", downloadDir,
-            "download.prompt_for_download", false,
-            "safebrowsing.enabled", true
-        ));
-
-        WebDriver driver = new EdgeDriver(options);
+        WebDriver driver = new EdgeDriver();
 
         try {
             // Step 1: Log in to SharePoint
             driver.get("https://your-sharepoint-site-url");
-            Thread.sleep(5000); // Adjust as per your login process
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
-            WebElement emailField = driver.findElement(By.id("i0116")); // Adjust locator as needed
+            // Enter email
+            WebElement emailField = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("i0116")));
             emailField.sendKeys("your-email@example.com");
-            driver.findElement(By.id("idSIButton9")).click(); // Click Next
+            driver.findElement(By.id("idSIButton9")).click(); // Next button
 
-            Thread.sleep(2000); // Wait for password field
-            WebElement passwordField = driver.findElement(By.id("i0118"));
+            // Enter password
+            WebElement passwordField = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("i0118")));
             passwordField.sendKeys("your-password");
-            driver.findElement(By.id("idSIButton9")).click(); // Click Sign In
+            driver.findElement(By.id("idSIButton9")).click(); // Sign in
 
-            Thread.sleep(3000); // Handle "Stay signed in" prompt
-            WebElement staySignedIn = driver.findElement(By.id("idSIButton9"));
-            if (staySignedIn.isDisplayed()) {
-                staySignedIn.click();
-            }
+            // Handle "Stay signed in" prompt
+            WebElement staySignedIn = wait.until(ExpectedConditions.elementToBeClickable(By.id("idSIButton9")));
+            staySignedIn.click();
 
             // Step 2: Navigate to the file on SharePoint
             driver.get("https://your-sharepoint-site-url/path-to-your-file");
-            Thread.sleep(5000);
+            Thread.sleep(5000); // Wait for the file preview to load
 
-            // Step 3: Click the file link to download it
-            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]")); // Adjust as needed
-            fileLink.click();
-            Thread.sleep(10000); // Wait for the download to complete
+            // Step 3: Extract content from the file viewer
+            // Example for text files
+            WebElement fileContent = driver.findElement(By.tagName("body")); // Adjust this based on file viewer structure
+            String content = fileContent.getText();
 
-            // Step 4: Read the downloaded file
-            File downloadedFile = new File(downloadDir + "/example.txt");
-            if (downloadedFile.exists()) {
-                BufferedReader reader = new BufferedReader(new FileReader(downloadedFile));
-                StringBuilder content = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
-                }
-                reader.close();
+            // Print content
+            System.out.println("File Content:\n" + content);
 
-                System.out.println("File content:\n" + content);
-
-                // Save modified content locally (optional)
-                File modifiedFile = new File(downloadDir + "/modified_example.txt");
-                try (BufferedWriter writer = new BufferedWriter(new FileWriter(modifiedFile))) {
-                    writer.write(content.toString().toUpperCase()); // Example modification
-                }
-                System.out.println("Modified file saved at: " + modifiedFile.getAbsolutePath());
-            } else {
-                System.out.println("Downloaded file not found.");
+            // Optional: Save content to a local file
+            // Save to a new file locally
+            String localFilePath = System.getProperty("user.home") + "/Downloads/copied_file_from_browser.txt";
+            try (java.io.FileWriter writer = new java.io.FileWriter(localFilePath)) {
+                writer.write(content);
             }
+            System.out.println("Content saved to: " + localFilePath);
 
         } catch (Exception e) {
             e.printStackTrace();
