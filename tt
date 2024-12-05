@@ -1,62 +1,41 @@
-import com.microsoft.aad.msal4j.*;
-import java.net.URI;
-import java.util.Collections;
-import java.util.Set;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
 
-public class SharePointLogin {
+public class SharePointWebUILogin {
 
-    // Define your application details
-    private static final String CLIENT_ID = "your-client-id";
-    private static final String CLIENT_SECRET = "your-client-secret";
-    private static final String TENANT_ID = "your-tenant-id";
-    private static final String AUTHORITY = "https://login.microsoftonline.com/" + TENANT_ID;
-    private static final String RESOURCE = "https://your-sharepoint-domain.sharepoint.com";
-    private static final String REDIRECT_URI = "http://localhost";
-
-    private static IAuthenticationResult authResult;
+    private static final String SHAREPOINT_URL = "https://yourdomain.sharepoint.com";
+    private static final String EMAIL = "your-email@example.com";
+    private static final String PASSWORD = "your-password";
 
     public static void main(String[] args) {
+        // Set the path to your WebDriver executable
+        System.setProperty("webdriver.chrome.driver", "path/to/chromedriver");
+
+        // Create a new WebDriver instance
+        WebDriver driver = new ChromeDriver();
+
         try {
-            if (isLoggedIn()) {
-                System.out.println("Already logged in.");
-                System.out.println("Token: " + authResult.accessToken());
+            // Navigate to the SharePoint login page
+            driver.get(SHAREPOINT_URL);
+
+            // Login process
+            loginToSharePoint(driver);
+
+            // Check if logged in
+            if (isLoggedIn(driver)) {
+                System.out.println("Successfully logged in to SharePoint.");
             } else {
-                System.out.println("Not logged in. Signing in...");
-                signIn();
+                System.out.println("Failed to log in.");
             }
 
-            // Perform SharePoint operations here...
+            // Perform operations on SharePoint here...
 
-            // Sign out
-            System.out.println("Signing out...");
-            signOut();
-        } catch (Exception e) {
-            e.printStackTrace();
+            // Logout process
+            logoutFromSharePoint(driver);
+        } finally {
+            // Close the browser
+            driver.quit();
         }
     }
-
-    private static boolean isLoggedIn() {
-        return authResult != null && !authResult.expiresOnDate().before(new java.util.Date());
-    }
-
-    private static void signIn() throws Exception {
-        ConfidentialClientApplication app = ConfidentialClientApplication.builder(CLIENT_ID,
-                ClientCredentialFactory.createFromSecret(CLIENT_SECRET))
-                .authority(AUTHORITY)
-                .build();
-
-        // Request token for the resource (SharePoint)
-        Set<String> scopes = Collections.singleton(RESOURCE + "/.default");
-        ClientCredentialParameters parameters = ClientCredentialParameters.builder(scopes).build();
-
-        authResult = app.acquireToken(parameters).join();
-
-        System.out.println("Logged in successfully.");
-        System.out.println("Access Token: " + authResult.accessToken());
-    }
-
-    private static void signOut() {
-        authResult = null;
-        System.out.println("Signed out successfully.");
-    }
-}
