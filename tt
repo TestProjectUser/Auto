@@ -1,53 +1,62 @@
-import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.edge.EdgeDriver;
+import com.microsoft.aad.msal4j.*;
+import java.net.URI;
+import java.util.Collections;
+import java.util.Set;
 
-import java.util.ArrayList;
+public class SharePointLogin {
 
-public class ReadFileFromNewTab {
+    // Define your application details
+    private static final String CLIENT_ID = "your-client-id";
+    private static final String CLIENT_SECRET = "your-client-secret";
+    private static final String TENANT_ID = "your-tenant-id";
+    private static final String AUTHORITY = "https://login.microsoftonline.com/" + TENANT_ID;
+    private static final String RESOURCE = "https://your-sharepoint-domain.sharepoint.com";
+    private static final String REDIRECT_URI = "http://localhost";
+
+    private static IAuthenticationResult authResult;
 
     public static void main(String[] args) {
-        WebDriverManager.edgedriver().setup();
-        WebDriver driver = new EdgeDriver();
-
         try {
-            // Step 1: Log in to SharePoint and navigate to the file link
-            driver.get("https://your-sharepoint-site-url");
-            Thread.sleep(5000); // Adjust for login
-
-            // Locate and click the file link that opens in a new tab
-            WebElement fileLink = driver.findElement(By.xpath("//a[contains(text(), 'example.txt')]")); // Adjust locator
-            fileLink.click();
-            Thread.sleep(3000); // Wait for the new tab to open
-
-            // Step 2: Switch to the new tab
-            ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
-            driver.switchTo().window(tabs.get(1)); // Switch to the second tab
-
-            // Step 3: Extract content from the file displayed in the new tab
-            // Option 1: Use JavaScript to get the body text
-            JavascriptExecutor js = (JavascriptExecutor) driver;
-            String content = (String) js.executeScript("return document.body.innerText;");
-            System.out.println("File Content:\n" + content);
-
-            // Optional: Save the content to a local file
-            String localFilePath = System.getProperty("user.home") + "/Downloads/copied_file_from_new_tab.txt";
-            try (java.io.FileWriter writer = new java.io.FileWriter(localFilePath)) {
-                writer.write(content);
+            if (isLoggedIn()) {
+                System.out.println("Already logged in.");
+                System.out.println("Token: " + authResult.accessToken());
+            } else {
+                System.out.println("Not logged in. Signing in...");
+                signIn();
             }
-            System.out.println("Content saved to: " + localFilePath);
 
-            // Step 4: Close the new tab and switch back to the original tab
-            driver.close();
-            driver.switchTo().window(tabs.get(0));
+            // Perform SharePoint operations here...
 
+            // Sign out
+            System.out.println("Signing out...");
+            signOut();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            driver.quit();
         }
+    }
+
+    private static boolean isLoggedIn() {
+        return authResult != null && !authResult.expiresOnDate().before(new java.util.Date());
+    }
+
+    private static void signIn() throws Exception {
+        ConfidentialClientApplication app = ConfidentialClientApplication.builder(CLIENT_ID,
+                ClientCredentialFactory.createFromSecret(CLIENT_SECRET))
+                .authority(AUTHORITY)
+                .build();
+
+        // Request token for the resource (SharePoint)
+        Set<String> scopes = Collections.singleton(RESOURCE + "/.default");
+        ClientCredentialParameters parameters = ClientCredentialParameters.builder(scopes).build();
+
+        authResult = app.acquireToken(parameters).join();
+
+        System.out.println("Logged in successfully.");
+        System.out.println("Access Token: " + authResult.accessToken());
+    }
+
+    private static void signOut() {
+        authResult = null;
+        System.out.println("Signed out successfully.");
     }
 }
