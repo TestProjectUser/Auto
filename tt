@@ -39,3 +39,51 @@ public class SharePointWebUILogin {
             driver.quit();
         }
     }
+
+    private static void loginToSharePoint(WebDriver driver) {
+        // Enter email
+        WebElement emailField = driver.findElement(By.id("i0116"));
+        emailField.sendKeys(EMAIL);
+        WebElement nextButton = driver.findElement(By.id("idSIButton9"));
+        nextButton.click();
+
+        // Wait for password field to appear (you can add explicit waits here)
+        try {
+            Thread.sleep(2000); // Replace with WebDriverWait for production
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Enter password
+        WebElement passwordField = driver.findElement(By.id("i0118"));
+        passwordField.sendKeys(PASSWORD);
+        WebElement signInButton = driver.findElement(By.id("idSIButton9"));
+        signInButton.click();
+
+        // Wait for login to complete
+        try {
+            Thread.sleep(5000); // Replace with WebDriverWait for production
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Handle "Stay signed in?" prompt if it appears
+        try {
+            WebElement staySignedInButton = driver.findElement(By.id("idSIButton9"));
+            staySignedInButton.click();
+        } catch (Exception e) {
+            // If the prompt does not appear, continue
+        }
+    }
+
+    private static boolean isLoggedIn(WebDriver driver) {
+        // Check if user is redirected to the SharePoint homepage or dashboard
+        return driver.getCurrentUrl().contains("/_layouts/15/") || driver.getTitle().contains("SharePoint");
+    }
+
+    private static void logoutFromSharePoint(WebDriver driver) {
+        // Navigate to logout URL (this may vary based on your organization)
+        driver.get(SHAREPOINT_URL + "/_layouts/15/signout.aspx");
+        System.out.println("Signed out successfully.");
+    }
+}
