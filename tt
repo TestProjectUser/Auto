@@ -1,53 +1,29 @@
-To sort an ArrayList of dates (month and day) in Java, you can use the Collections.sort() method or Java's Streams API. Here's an example of how you can do it:
+import java.text.SimpleDateFormat;
+import java.util.*;
 
-Example Code
-
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-
-public class SortArrayListByMonthAndDate {
+public class SortByDateInString {
     public static void main(String[] args) {
-        // Create an ArrayList of LocalDate (Year is not important)
-        ArrayList<LocalDate> dates = new ArrayList<>();
-        
-        // Add dates (year can be arbitrary, e.g., 2000 for consistency)
-        dates.add(LocalDate.of(2000, 3, 15)); // March 15
-        dates.add(LocalDate.of(2000, 1, 10)); // January 10
-        dates.add(LocalDate.of(2000, 12, 25)); // December 25
-        dates.add(LocalDate.of(2000, 6, 5));  // June 5
-        
-        // Sort the dates by month and day
-        Collections.sort(dates, Comparator.comparingInt(date -> date.getMonthValue() * 100 + date.getDayOfMonth()));
-        
-        // Print sorted dates
-        System.out.println("Sorted Dates:");
-        for (LocalDate date : dates) {
-            System.out.println(date.getMonth() + " " + date.getDayOfMonth());
-        }
+        // Sample list of strings
+        List<String> stringsWithDates = Arrays.asList(
+            "Sep 8 60.00 about gdkd",
+            "Jan 15 45.00 about abc",
+            "Dec 25 100.00 about xyz",
+            "Mar 3 30.00 about lmn"
+        );
+
+        // Define the date format
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d", Locale.ENGLISH);
+
+        // Sort the list
+        stringsWithDates.sort(Comparator.comparing(s -> {
+            try {
+                return dateFormat.parse(s.split(" ", 3)[0] + " " + s.split(" ", 3)[1]);
+            } catch (Exception e) {
+                throw new RuntimeException(e); // Handle parse exceptions
+            }
+        }));
+
+        // Print the sorted list
+        stringsWithDates.forEach(System.out::println);
     }
 }
-
-Explanation:
-
-1. Use LocalDate: This handles dates easily without the need for manual parsing.
-
-
-2. Comparator: The key date.getMonthValue() * 100 + date.getDayOfMonth() ensures sorting by month first, then by day.
-
-
-3. Collections.sort(): Sorts the list in place.
-
-
-
-Output:
-
-Sorted Dates:
-JANUARY 10
-MARCH 15
-JUNE 5
-DECEMBER 25
-
-This ensures your dates are sorted correctly based on the month and day, ignoring the year.
-
