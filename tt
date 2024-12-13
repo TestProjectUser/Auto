@@ -2,14 +2,15 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class SortAndCleanStrings {
+public class SortAndKeepMaths {
     public static void main(String[] args) {
         // Sample list of strings
         List<String> stringsWithDates = Arrays.asList(
-            "Sep 8 60.00 transfer in about gdkd",
+            "Sep 8 60.00 transfer in about gdkd maths",
             "Jan 15 45.00 transfer out",
-            "Dec 25 100.00 transfer in some info",
-            "Mar 3 30.00 transfer out extra text"
+            "Dec 25 100.00 maths some info",
+            "Mar 3 30.00 extra text maths",
+            "Apr 1 50.00 random text"
         );
 
         // Define the date format
@@ -17,7 +18,16 @@ public class SortAndCleanStrings {
 
         // Process the strings: Clean and Sort
         List<String> sortedAndCleaned = stringsWithDates.stream()
-            .map(s -> s.replaceAll("(transfer (in|out)).*", "$1")) // Keep only "transfer in" or "transfer out"
+            .map(s -> {
+                // Check if "math" or "maths" is present
+                if (s.contains("math") || s.contains("maths")) {
+                    return s.replaceAll(".*?(maths?)", "$1").trim(); // Keep only "math" or "maths"
+                } else if (s.contains("transfer in") || s.contains("transfer out")) {
+                    return s.replaceAll("(transfer (in|out)).*", "$1").trim(); // Keep "transfer in/out"
+                } else {
+                    return s.split(" ", 3)[0] + " " + s.split(" ", 3)[1]; // Keep only the date
+                }
+            })
             .sorted(Comparator.comparing(s -> {
                 try {
                     String datePart = s.split(" ", 3)[0] + " " + s.split(" ", 3)[1];
