@@ -2,34 +2,49 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class SortAndKeepMaths {
+public class SortAndModifyStrings {
     public static void main(String[] args) {
-        // Sample list of strings
+        // Sample list of strings with both integer and decimal numbers
         List<String> stringsWithDates = Arrays.asList(
-            "Sep 8 60.00 transfer in about gdkd maths",
-            "Jan 15 45.00 transfer out",
-            "Dec 25 100.00 maths some info",
-            "Mar 3 30.00 extra text maths",
-            "Apr 1 50.00 random text"
+            "Sep 8 60 transfer in about gdkd maths details here",
+            "Jan 15 45 transfer out extra info",
+            "Dec 25 100 maths important info",
+            "Mar 3 30 extra text maths more details",
+            "Apr 1 50 random text maths other details",
+            "Jan 22 6543 350.00 extra numeric value"
         );
 
         // Define the date format
         SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d", Locale.ENGLISH);
 
-        // Process the strings: Clean and Sort
-        List<String> sortedAndCleaned = stringsWithDates.stream()
+        // Process the strings: Clean, modify, and sort
+        List<String> sortedAndModified = stringsWithDates.stream()
             .map(s -> {
-                // Check if "math" or "maths" is present
-                if (s.contains("math") || s.contains("maths")) {
-                    return s.replaceAll(".*?(maths?)", "$1").trim(); // Keep only "math" or "maths"
-                } else if (s.contains("transfer in") || s.contains("transfer out")) {
-                    return s.replaceAll("(transfer (in|out)).*", "$1").trim(); // Keep "transfer in/out"
-                } else {
-                    return s.split(" ", 3)[0] + " " + s.split(" ", 3)[1]; // Keep only the date
+                // Step 1: Split the string by spaces and check for numeric value after the date
+                String[] parts = s.split(" ", 4); // Split into 4 parts (Date + numeric value + additional text)
+                
+                // Check if the third part is a number (integer) without a decimal
+                if (parts.length > 2 && isInteger(parts[2])) {
+                    // Add "new" after the numeric value if it's an integer
+                    return parts[0] + " " + parts[1] + " new " + parts[2] + " new" + (parts.length > 3 ? " " + parts[3] : "");
                 }
+
+                // Step 2: Handle "math" or "maths" by retaining the part up to and including "maths"
+                if (s.contains("math") || s.contains("maths")) {
+                    return s.replaceAll("(maths?).*", "$1").trim();
+                }
+
+                // Step 3: Handle "transfer in" or "transfer out" by retaining only the keywords
+                if (s.contains("transfer in") || s.contains("transfer out")) {
+                    return s.replaceAll("(transfer (in|out)).*", "$1").trim();
+                }
+
+                // Step 4: Default: Keep only the date (first two parts)
+                return s.split(" ", 3)[0] + " " + s.split(" ", 3)[1];
             })
             .sorted(Comparator.comparing(s -> {
                 try {
+                    // Extract date for sorting
                     String datePart = s.split(" ", 3)[0] + " " + s.split(" ", 3)[1];
                     return dateFormat.parse(datePart);
                 } catch (Exception e) {
@@ -38,7 +53,17 @@ public class SortAndKeepMaths {
             }))
             .collect(Collectors.toList());
 
-        // Print the sorted and cleaned list
-        sortedAndCleaned.forEach(System.out::println);
+        // Print the sorted and modified list
+        sortedAndModified.forEach(System.out::println);
+    }
+
+    // Helper method to check if a string is an integer (without decimal)
+    private static boolean isInteger(String str) {
+        try {
+            Integer.parseInt(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }
