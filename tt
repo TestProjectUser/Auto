@@ -1,39 +1,25 @@
-import io.restassured.RestAssured;
-import io.restassured.response.Response;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Iterator;
 
-public class ExcelMultiSheetRestAssured {
+public class ReadXLSFile {
 
     public static void main(String[] args) {
-        String filePath = "./data.xlsx"; // Path to the Excel file
+        String filePath = "./data.xls";
 
         try (FileInputStream fis = new FileInputStream(new File(filePath));
-             Workbook workbook = new XSSFWorkbook(fis)) {
+             Workbook workbook = new HSSFWorkbook(fis)) {
 
-            // Iterate through all sheets in the workbook
+            // Iterate through all sheets
             for (Sheet sheet : workbook) {
                 System.out.println("Processing sheet: " + sheet.getSheetName());
 
-                // Iterate through all rows in the current sheet
-                Iterator<Row> rowIterator = sheet.iterator();
-                int rowNum = 0;
-                while (rowIterator.hasNext()) {
-                    Row row = rowIterator.next();
-
-                    // Skip header row
-                    if (rowNum == 0) {
-                        rowNum++;
-                        continue;
-                    }
-
-                    // Read values from specific columns
+                // Iterate through all rows
+                for (Row row : sheet) {
+                    // Read specific columns (A=0, B=1, F=5, H=7, J=9, L=11, N=13)
                     String colA = getCellValue(row, 0); // Column A
                     String colB = getCellValue(row, 1); // Column B
                     String colF = getCellValue(row, 5); // Column F
@@ -42,65 +28,25 @@ public class ExcelMultiSheetRestAssured {
                     String colL = getCellValue(row, 11); // Column L
                     String colN = getCellValue(row, 13); // Column N
 
-                    // Construct the request body
-                    String requestBody = "<Request>\n" +
-                            "    <ColumnA>" + colA + "</ColumnA>\n" +
-                            "    <ColumnB>" + colB + "</ColumnB>\n" +
-                            "    <ColumnF>" + colF + "</ColumnF>\n" +
-                            "    <ColumnH>" + colH + "</ColumnH>\n" +
-                            "    <ColumnJ>" + colJ + "</ColumnJ>\n" +
-                            "    <ColumnL>" + colL + "</ColumnL>\n" +
-                            "    <ColumnN>" + colN + "</ColumnN>\n" +
-                            "</Request>";
-
-                    // Add headers and make the POST request
-                    RestAssured.baseURI = "https://example.com/api"; // Replace with your endpoint
-                    Response response = RestAssured.given()
-                            .header("Content-Type", "application/xml")
-                            .header("Authorization", "Bearer your_token") // Example header
-                            .body(requestBody)
-                            .post("/endpoint"); // Replace with your actual endpoint
-
-                    String responseBody = response.asString();
-                    System.out.println("Response for row " + rowNum + ": " + responseBody);
-
-                    // Write the response to a new column (e.g., column O)
-                    Cell responseCell = row.createCell(14, CellType.STRING); // Column O
-                    responseCell.setCellValue(responseBody);
-
-                    rowNum++;
+                    // Print or process these values
+                    System.out.printf("A=%s, B=%s, F=%s, H=%s, J=%s, L=%s, N=%s%n", colA, colB, colF, colH, colJ, colL, colN);
                 }
             }
-
-            // Save the updated workbook back to the file
-            try (FileOutputStream fos = new FileOutputStream(new File(filePath))) {
-                workbook.write(fos);
-            }
-
-            System.out.println("All responses written to the Excel file.");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    /**
-     * Utility method to get the string value of a cell.
-     */
+    // Utility to get cell value as String
     private static String getCellValue(Row row, int cellIndex) {
         Cell cell = row.getCell(cellIndex);
-        if (cell == null) {
-            return ""; // Return empty string for null cells
-        }
+        if (cell == null) return "";
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue();
             case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
-                } else {
-                    return String.valueOf(cell.getNumericCellValue());
-                }
+                return String.valueOf(cell.getNumericCellValue());
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
             case FORMULA:
