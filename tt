@@ -1,116 +1,32 @@
+import java.io.FileWriter;
+import java.io.IOException;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
-import org.apache.poi.hssf.eventusermodel.*;
-import org.apache.poi.poifs.filesystem.POIFSFileSystem;
-import org.apache.poi.hssf.record.*;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-
-public class LargeXLSReaderAndApiRequest {
+public class SaveApiResponseToFile {
 
     public static void main(String[] args) {
-        String filePath = "./large_data.xls"; // Path to your .xls file
-        String xmlTemplatePath = "./request_template.xml"; // Path to your XML template file
+        // Example API URL (replace with your actual endpoint)
+        String apiEndpoint = "https://jsonplaceholder.typicode.com/posts/1";
 
-        try (FileInputStream fis = new FileInputStream(new File(filePath))) {
-            POIFSFileSystem fs = new POIFSFileSystem(fis);
-            HSSFRequest request = new HSSFRequest();
-            request.addListenerForAllRecords(new CustomHSSFListener(xmlTemplatePath));
+        try {
+            // Send the API request and capture the response
+            Response response = RestAssured.get(apiEndpoint);
 
-            // Start processing the .xls file
-            HSSFUserModel userModel = new HSSFUserModel(fs.getRoot(), fs, new EventWorkbookBuilder.SheetRecordCollectingListener(request));
-            userModel.process();
+            // Get the response body as a string
+            String responseBody = response.getBody().asString();
 
-        } catch (IOException e) {
+            // Specify the output file path (replace with your desired file path)
+            String filePath = "api_response.txt";
+
+            // Write the response to a new text file
+            try (FileWriter fileWriter = new FileWriter(filePath)) {
+                fileWriter.write(responseBody);
+                System.out.println("API response saved to file: " + filePath);
+            }
+
+        } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-
-    // Custom listener to process each row of the .xls file
-    static class CustomHSSFListener implements HSSFListener {
-        private String colA, colB, colF, colH, colJ, colL, colN;
-        private boolean isHeaderRow = true;  // Flag to skip header row
-        private final String xmlTemplate;
-
-        public CustomHSSFListener(String xmlTemplatePath) throws IOException {
-            // Load XML template from file
-            xmlTemplate = new String(Files.readAllBytes(Paths.get(xmlTemplatePath)));
-        }
-
-        @Override
-        public void processRecord(Record record) {
-            // Skip the header row (first row) based on record type
-            if (record instanceof LabelSSTRecord) {
-                LabelSSTRecord label = (LabelSSTRecord) record;
-
-                // If it's the first row, skip processing
-                if (isHeaderRow) {
-                    if (label.getColumn() == 0) {
-                        isHeaderRow = false;  // After the first row, start processing data rows
-                    }
-                    return; // Skip header row processing
-                }
-
-                // Capture the values of specific columns (skip header row)
-                switch (label.getColumn()) {
-                    case 0:
-                        colA = label.getString();
-                        break;
-                    case 1:
-                        colB = label.getString();
-                        break;
-                    case 5:
-                        colF = label.getString();
-                        break;
-                    case 7:
-                        colH = label.getString();
-                        break;
-                    case 9:
-                        colJ = label.getString();
-                        break;
-                    case 11:
-                        colL = label.getString();
-                        break;
-                    case 13:
-                        colN = label.getString();
-                        break;
-                }
-            }
-
-            // After processing each data row, send the API request
-            if (record instanceof EndRowRecord && !isHeaderRow) {
-                sendApiRequest(colA, colB, colF, colH, colJ, colL, colN);
-            }
-        }
-
-        // Method to send an API request with the XML data
-        private void sendApiRequest(String colA, String colB, String colF, String colH, String colJ, String colL, String colN) {
-            // Replace placeholders in the XML template with actual values
-            String updatedXml = xmlTemplate
-                    .replace("${ColumnA}", colA)
-                    .replace("${ColumnB}", colB)
-                    .replace("${ColumnF}", colF)
-                    .replace("${ColumnH}", colH)
-                    .replace("${ColumnJ}", colJ)
-                    .replace("${ColumnL}", colL)
-                    .replace("${ColumnN}", colN);
-
-            // Sending the request using Rest-Assured
-            RestAssured.baseURI = "https://example.com/api"; // Replace with your API base URL
-            Response response = RestAssured.given()
-                    .header("Content-Type", "application/xml")
-                    .header("Authorization", "Bearer your_token") // Replace with your token
-                    .body(updatedXml)
-                    .post("/endpoint"); // Replace with your actual endpoint
-
-            String responseBody = response.asString();
-            System.out.println("Response for row: " + responseBody);
-
-            // You can modify this part to write the response back into the Excel file if needed
         }
     }
 }
