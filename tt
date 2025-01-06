@@ -3,103 +3,62 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.*;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
-public class ExcelProcessor {
+public class FilterUniqueRecords {
 
     public static void main(String[] args) throws Exception {
-        // Step 1: Read xls1 and capture unique values from Column A
-        Set<String> uniqueValues = new HashSet<>();
+        // Step 1: Read xls1
         FileInputStream fis = new FileInputStream("xls1.xlsx");
         Workbook workbook = new XSSFWorkbook(fis);
         Sheet sheet = workbook.getSheetAt(0);
 
-        for (Row row : sheet) {
-            Cell cell = row.getCell(0); // Column A
-            if (cell != null) {
-                uniqueValues.add(cell.getStringCellValue());
+        // Step 2: Filter records where the column "match" has a specific value and capture unique rows
+        String filterValue = "matchValue"; // Replace with the value you want to filter
+        int matchColumnIndex = -1; // Index of "match" column (to be determined dynamically)
+        Set<String> uniqueRecords = new LinkedHashSet<>();
+
+        // Find the "match" column by name (header row assumed to be the first row)
+        Row headerRow = sheet.getRow(0);
+        for (Cell cell : headerRow) {
+            if (cell.getStringCellValue().equalsIgnoreCase("match")) {
+                matchColumnIndex = cell.getColumnIndex();
+                break;
             }
         }
+
+        if (matchColumnIndex == -1) {
+            System.err.println("Column 'match' not found in the sheet!");
+            workbook.close();
+            return;
+        }
+
+        // Loop through the rows and filter by "match" column
+        for (Row row : sheet) {
+            if (row.getRowNum() == 0) continue; // Skip header row
+            Cell matchCell = row.getCell(matchColumnIndex);
+
+            if (matchCell != null && matchCell.getStringCellValue().equalsIgnoreCase(filterValue)) {
+                // Capture unique records (entire row as a concatenated string)
+                StringBuilder rowData = new StringBuilder();
+                for (Cell cell : row) {
+                    rowData.append(cell.toString()).append("|"); // Use a delimiter to separate cell values
+                }
+                uniqueRecords.add(rowData.toString());
+            }
+        }
+
         workbook.close();
 
-        // Step 2: Read other Excel files (xls2, xls3, xls4) and match values
-        String[] otherFiles = {"xls2.xlsx", "xls3.xlsx", "xls4.xlsx"};
-        List<Map<String, String>> results = new ArrayList<>();
-
-        for (String fileName : otherFiles) {
-            fis = new FileInputStream(fileName);
-            workbook = new XSSFWorkbook(fis);
-            sheet = workbook.getSheetAt(0);
-
-            for (Row row : sheet) {
-                Cell cellA = row.getCell(0); // Column A
-                Cell cellB = row.getCell(1); // Column B (lname)
-
-                if (cellA != null && uniqueValues.contains(cellA.getStringCellValue())) {
-                    String value = cellA.getStringCellValue();
-                    String lname = cellB != null ? cellB.getStringCellValue() : "";
-
-                    // Step 3: Send API call with the matched value
-                    String status = sendApiRequest(value);
-
-                    // Collect results
-                    Map<String, String> result = new HashMap<>();
-                    result.put("frame", value);
-                    result.put("lname", lname);
-                    result.put("status", status);
-                    results.add(result);
-                }
-            }
-            workbook.close();
-        }
-
-        // Step 4: Save results to a new Excel file
+        // Step 3: Save unique records into a new Excel file
         Workbook outputWorkbook = new XSSFWorkbook();
-        Sheet outputSheet = outputWorkbook.createSheet("Results");
+        Sheet outputSheet = outputWorkbook.createSheet("Unique Records");
+
         int rowIndex = 0;
-
-        // Add header
-        Row headerRow = outputSheet.createRow(rowIndex++);
-        headerRow.createCell(0).setCellValue("frame");
-        headerRow.createCell(1).setCellValue("lname");
-        headerRow.createCell(2).setCellValue("status");
-
-        // Add data
-        for (Map<String, String> result : results) {
-            Row row = outputSheet.createRow(rowIndex++);
-            row.createCell(0).setCellValue(result.get("frame"));
-            row.createCell(1).setCellValue(result.get("lname"));
-            row.createCell(2).setCellValue(result.get("status"));
-        }
-
-        FileOutputStream fos = new FileOutputStream("output.xlsx");
-        outputWorkbook.write(fos);
-        outputWorkbook.close();
-
-        System.out.println("Processing complete. Output saved to 'output.xlsx'.");
-    }
-
-    private static String sendApiRequest(String value) {
-        try {
-            URL url = new URL("https://example.com/api"); // Replace with actual API URL
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setDoOutput(true);
-
-            String payload = String.format("{\"value\":\"%s\"}", value);
-            connection.getOutputStream().write(payload.getBytes());
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == 200) {
-                return "Success";
-            } else {
-                return "Failed";
-            }
-        } catch (Exception e) {
-            return "Error: " + e.getMessage();
-        }
-    }
-}
+        for (String record : uniqueRecords) {
+            Row newRow = outputSheet.createRow(rowIndex++);
+            String[] cellValues = record.split("\\|");
+            for (int i = 0; i < cellValues.length; i++) {
+                newRow.createCell(i).setCell
