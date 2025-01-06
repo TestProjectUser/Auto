@@ -3,7 +3,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -18,7 +17,7 @@ public class FilterUniqueRecords {
         // Step 2: Filter records where the column "match" has a specific value and capture unique rows
         String filterValue = "matchValue"; // Replace with the value you want to filter
         int matchColumnIndex = -1; // Index of "match" column (to be determined dynamically)
-        Set<String> uniqueRecords = new LinkedHashSet<>();
+        Set<String> uniqueRecords = new LinkedHashSet<>(); // Use Set to ensure uniqueness
 
         // Find the "match" column by name (header row assumed to be the first row)
         Row headerRow = sheet.getRow(0);
@@ -38,27 +37,53 @@ public class FilterUniqueRecords {
         // Loop through the rows and filter by "match" column
         for (Row row : sheet) {
             if (row.getRowNum() == 0) continue; // Skip header row
-            Cell matchCell = row.getCell(matchColumnIndex);
 
+            Cell matchCell = row.getCell(matchColumnIndex);
             if (matchCell != null && matchCell.getStringCellValue().equalsIgnoreCase(filterValue)) {
-                // Capture unique records (entire row as a concatenated string)
+                // Concatenate row data to create a unique identifier
                 StringBuilder rowData = new StringBuilder();
                 for (Cell cell : row) {
-                    rowData.append(cell.toString()).append("|"); // Use a delimiter to separate cell values
+                    rowData.append(cell.toString()).append("|"); // Use a delimiter
                 }
+
+                // Skip duplicate records
+                if (uniqueRecords.contains(rowData.toString())) {
+                    continue; // Skip this row and move to the next
+                }
+
+                // Add to unique records
                 uniqueRecords.add(rowData.toString());
             }
         }
 
-        workbook.close();
+        // Do not close the workbook here since we're only filtering and skipping duplicates
+        fis.close();
 
         // Step 3: Save unique records into a new Excel file
         Workbook outputWorkbook = new XSSFWorkbook();
         Sheet outputSheet = outputWorkbook.createSheet("Unique Records");
 
         int rowIndex = 0;
+
+        // Write header row
+        Row newHeaderRow = outputSheet.createRow(rowIndex++);
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            newHeaderRow.createCell(i).setCellValue(headerRow.getCell(i).getStringCellValue());
+        }
+
+        // Write unique rows
         for (String record : uniqueRecords) {
             Row newRow = outputSheet.createRow(rowIndex++);
             String[] cellValues = record.split("\\|");
             for (int i = 0; i < cellValues.length; i++) {
-                newRow.createCell(i).setCell
+                newRow.createCell(i).setCellValue(cellValues[i]);
+            }
+        }
+
+        FileOutputStream fos = new FileOutputStream("unique_records.xlsx");
+        outputWorkbook.write(fos);
+        outputWorkbook.close();
+
+        System.out.println("Unique records saved to 'unique_records.xlsx'.");
+    }
+}
