@@ -1,76 +1,30 @@
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.io.*;
 
-public class FilterNonNAUniqueRecords {
+public class SaveAsExcelExample {
+    public static void main(String[] args) {
+        String inputFilePath = "input.xls";  // Path to the original file
+        String outputFilePath = "output.xls"; // Path for the new file
 
-    public static void main(String[] args) throws Exception {
-        // Step 1: Read xls1
-        FileInputStream fis = new FileInputStream("xls1.xlsx");
-        Workbook workbook = new XSSFWorkbook(fis);
-        Sheet sheet = workbook.getSheetAt(0);
+        try (Workbook workbook = new HSSFWorkbook(new FileInputStream(inputFilePath));
+             FileOutputStream fos = new FileOutputStream(outputFilePath)) {
 
-        // Step 2: Filter records where "Mach" is not "N/A" and capture unique values
-        int machColumnIndex = -1; // Index of "Mach" column (to be determined dynamically)
-        Set<String> uniqueValues = new LinkedHashSet<>(); // Use Set to ensure uniqueness
+            // Perform any modifications if needed (e.g., adding a new column)
+            Sheet sheet = workbook.getSheetAt(0); // Access the first sheet
+            int newColumnIndex = sheet.getRow(0).getLastCellNum(); // Next column index
 
-        // Find the "Mach" column by name (assumes the first row is the header row)
-        Row headerRow = sheet.getRow(0);
-        for (Cell cell : headerRow) {
-            if (cell.getStringCellValue().equalsIgnoreCase("Mach")) {
-                machColumnIndex = cell.getColumnIndex();
-                break;
+            for (Row row : sheet) {
+                row.createCell(newColumnIndex).setCellValue("New Value"); // Add "New Value"
             }
+
+            // Save the workbook to the new file (Save As)
+            workbook.write(fos);
+            System.out.println("File saved as: " + outputFilePath);
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-
-        if (machColumnIndex == -1) {
-            System.err.println("Column 'Mach' not found in the sheet!");
-            workbook.close();
-            return;
-        }
-
-        // Loop through the rows and filter by "Mach" column
-        for (Row row : sheet) {
-            if (row.getRowNum() == 0) continue; // Skip header row
-
-            Cell machCell = row.getCell(machColumnIndex);
-
-            // Check if "Mach" value is not "N/A" and is unique
-            if (machCell != null) {
-                String machValue = machCell.getStringCellValue();
-                if (!"N/A".equalsIgnoreCase(machValue) && uniqueValues.add(machValue)) {
-                    // If value is unique and not "N/A", capture it in the Set
-                    uniqueValues.add(machValue);
-                }
-            }
-        }
-
-        fis.close();
-
-        // Step 3: Save unique "Mach" values into a new Excel file
-        Workbook outputWorkbook = new XSSFWorkbook();
-        Sheet outputSheet = outputWorkbook.createSheet("Filtered Mach Values");
-
-        int rowIndex = 0;
-
-        // Write header row
-        Row newHeaderRow = outputSheet.createRow(rowIndex++);
-        newHeaderRow.createCell(0).setCellValue("Mach");
-
-        // Write unique values
-        for (String value : uniqueValues) {
-            Row newRow = outputSheet.createRow(rowIndex++);
-            newRow.createCell(0).setCellValue(value);
-        }
-
-        FileOutputStream fos = new FileOutputStream("filtered_mach_values.xlsx");
-        outputWorkbook.write(fos);
-        outputWorkbook.close();
-
-        System.out.println("Filtered unique 'Mach' values saved to 'filtered_mach_values.xlsx'.");
     }
 }
