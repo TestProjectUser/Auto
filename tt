@@ -1,20 +1,87 @@
-<dependency>
-    <groupId>io.rest-assured</groupId>
-    <artifactId>rest-assured</artifactId>
-    <version>5.3.0</version> <!-- Use the latest version -->
-</dependency>
-<dependency>
-    <groupId>org.apache.httpcomponents</groupId>
-    <artifactId>httpclient</artifactId>
-    <version>4.5.13</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.httpcomponents</groupId>
-    <artifactId>httpcore</artifactId>
-    <version>4.4.13</version>
-</dependency>
-<dependency>
-    <groupId>org.bouncycastle</groupId>
-    <artifactId>bcprov-jdk15on</artifactId>
-    <version>1.68</version> <!-- or latest version -->
-</dependency>
+import io.restassured.RestAssured;
+import io.restassured.specification.RequestSpecification;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.PEMReader;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+
+import javax.net.ssl.SSLContext;
+import java.io.FileReader;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.PrivateKey;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.KeyManagerFactory;
+
+public class RestAssuredSSLExample {
+
+    public static void main(String[] args) throws Exception {
+        // Load PEM certificate and key
+        String certFilePath = "/path/to/certificate.pem";
+        String keyFilePath = "/path/to/private_key.pem";
+
+        // Initialize the SSL context with PEM files
+        SSLContext sslContext = createSSLContext(certFilePath, keyFilePath);
+
+        // Set up RestAssured to use the SSL context
+        RestAssured.useRelaxedHTTPSValidation();
+
+        RequestSpecification requestSpec = RestAssured.given()
+                .config(RestAssured.config().sslConfig(new SSLConfig().sslSocketFactory(new SSLSocketFactory(sslContext))))
+                .baseUri("https://your.api.url");
+
+        // Example POST request
+        String response = requestSpec
+                .body("{ \"data\": \"value\" }")  // Replace with actual request body
+                .when()
+                .post("/api/endpoint")
+                .then()
+                .statusCode(200)
+                .extract().asString();
+
+        System.out.println(response);
+    }
+
+    private static SSLContext createSSLContext(String certFilePath, String keyFilePath) throws Exception {
+        // Load the PEM certificate and key
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+
+        // Load certificate
+        InputStream certInputStream = new FileInputStream(certFilePath);
+        X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
+
+        // Load private key
+        PEMParser pemParser = new PEMParser(new FileReader(keyFilePath));
+        PrivateKey privateKey = (PrivateKey) pemParser.readObject();
+
+        // Initialize KeyStore with the certificate and private key
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);  // Initialize empty keystore
+        keyStore.setCertificateEntry("cert", cert);
+        keyStore.setKeyEntry("private-key", privateKey, "password".toCharArray());  // Provide the key password
+
+        // Initialize KeyManagerFactory
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keyStore, "password".toCharArray());
+
+        // TrustManagerFactory (Use default trust store)
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init((KeyStore) null);
+
+        // Initialize SSLContext with the KeyManager and TrustManager
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+
+        return sslContext;
+    }
+}
