@@ -60,4 +60,22 @@ public class RestAssuredWithPem {
                 .response();
 
         // Print response
-        System.out.println
+        System.out.println(response.getBody().asString());
+    }
+
+    // Load certificate from PEM file
+    private static X509Certificate loadCertificate(String certPath) throws Exception {
+        File certFile = new File(certPath);
+        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(certFile.toPath()))) {
+            return (X509Certificate) pemParser.readObject();
+        }
+    }
+
+    // Load private key from PEM file
+    private static PrivateKey loadPrivateKey(String keyPath) throws Exception {
+        File keyFile = new File(keyPath);
+        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(keyFile.toPath()))) {
+            return (PrivateKey) pemParser.readObject();
+        }
+    }
+}
