@@ -1,79 +1,20 @@
-import io.restassured.RestAssured;
-import io.restassured.response.Response;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.impl.ssl.SSLContextBuilder;
-import org.apache.http.client.methods.HttpGet;
-import javax.net.ssl.SSLContext;
-import java.security.PrivateKey;
-import java.security.cert.X509Certificate;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import java.security.Security;
-
-public class RestAssuredWithPem {
-    public static void main(String[] args) throws Exception {
-        String pemCertFile = "path/to/your/certificate.pem"; // Path to your PEM certificate file
-        String pemKeyFile = "path/to/your/private-key.pem"; // Path to your PEM private key file
-        String apiHost = "https://your-api-host.com"; // API Host URL
-
-        // Add BouncyCastle as a security provider
-        Security.addProvider(new BouncyCastleProvider());
-
-        // Load certificate and private key from PEM files
-        X509Certificate cert = loadCertificate(pemCertFile);
-        PrivateKey privateKey = loadPrivateKey(pemKeyFile);
-
-        // Create SSLContext using the loaded PEM files
-        SSLContext sslContext = SSLContextBuilder.create()
-                .loadKeyMaterial(cert, privateKey)
-                .loadTrustMaterial(new org.apache.http.conn.ssl.TrustSelfSignedStrategy()) // For self-signed certificates
-                .build();
-
-        // Set up HttpClient with the custom SSLContext
-        CloseableHttpClient httpClient = HttpClients.custom()
-                .setSSLContext(sslContext)
-                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)  // Disable hostname verification (useful for testing)
-                .build();
-
-        // Set RestAssured to use the custom HttpClient
-        RestAssured.config = RestAssured.config().httpClient(
-                new io.restassured.config.HttpClientConfig().httpClient(httpClient));
-
-        // Send a POST request to the API
-        Response response = RestAssured.given()
-                .baseUri(apiHost)
-                .header("Content-Type", "application/json")
-                .body("{\"key\": \"value\"}") // Your updated request body here
-                .when()
-                .post("/update") // The API endpoint
-                .then()
-                .statusCode(200) // Expect HTTP 200 response
-                .extract()
-                .response();
-
-        // Print response
-        System.out.println(response.getBody().asString());
-    }
-
-    // Load certificate from PEM file
-    private static X509Certificate loadCertificate(String certPath) throws Exception {
-        File certFile = new File(certPath);
-        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(certFile.toPath()))) {
-            return (X509Certificate) pemParser.readObject();
-        }
-    }
-
-    // Load private key from PEM file
-    private static PrivateKey loadPrivateKey(String keyPath) throws Exception {
-        File keyFile = new File(keyPath);
-        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(keyFile.toPath()))) {
-            return (PrivateKey) pemParser.readObject();
-        }
-    }
-}
+<dependency>
+    <groupId>io.rest-assured</groupId>
+    <artifactId>rest-assured</artifactId>
+    <version>5.3.0</version> <!-- Use the latest version -->
+</dependency>
+<dependency>
+    <groupId>org.apache.httpcomponents</groupId>
+    <artifactId>httpclient</artifactId>
+    <version>4.5.13</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.httpcomponents</groupId>
+    <artifactId>httpcore</artifactId>
+    <version>4.4.13</version>
+</dependency>
+<dependency>
+    <groupId>org.bouncycastle</groupId>
+    <artifactId>bcprov-jdk15on</artifactId>
+    <version>1.68</version> <!-- or latest version -->
+</dependency>
