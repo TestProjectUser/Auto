@@ -1,34 +1,48 @@
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import org.json.JSONObject;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.io.IOException;
-import java.nio.file.StandardOpenOption;
+import static io.restassured.RestAssured.given;
 
-public class JSONPathUpdater {
+public class RestAssuredSecureTest {
     public static void main(String[] args) {
-        String filePath = "data.json"; // Path to your JSON file
+        String jsonFilePath = "data.json"; // Path to your JSON file
+        String apiHost = "https://your-api-host.com"; // API host URL
 
         try {
-            // Read JSON file as String
-            String content = new String(Files.readAllBytes(Paths.get(filePath)));
+            // Read JSON file content
+            String jsonContent = new String(Files.readAllBytes(Paths.get(jsonFilePath)));
 
-            // Parse JSON into DocumentContext
-            DocumentContext jsonContext = JsonPath.parse(content);
+            // Convert to JSON Object
+            JSONObject jsonObject = new JSONObject(jsonContent);
 
-            // Update values dynamically using JsonPath
-            jsonContext.set("$.name", "John Doe");  // Updating a string value
-            jsonContext.set("$.age", 30);           // Updating an integer value
-            jsonContext.set("$.items[0]", "UpdatedItem"); // Updating the first item in the array
+            // Modify JSON request body dynamically
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("fam", jsonObject.getString("fam")); // Using 'fam' from file
+            requestBody.put("name", "John Doe");
+            requestBody.put("age", 30);
+            requestBody.put("items", new String[]{"UpdatedItem", "Item2"});
 
-            // Get the updated JSON string
-            String updatedJson = jsonContext.jsonString();
+            // Setup RestAssured
+            RestAssured.baseURI = apiHost;
 
-            // Write updated JSON back to file
-            Files.write(Paths.get(filePath), updatedJson.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+            // Send POST request with relaxed SSL validation
+            Response response = given()
+                    .relaxedHTTPSValidation() // Ignore SSL issues (self-signed certs, expired certs, etc.)
+                    .header("Content-Type", "application/json")
+                    .header("cust", "value") // Custom header
+                    .body(requestBody.toString())
+                    .when()
+                    .post("/update")  // API endpoint
+                    .then()
+                    .statusCode(200)  // Expecting HTTP 200 OK response
+                    .extract()
+                    .response();
 
-            System.out.println("JSON file updated successfully!");
-        } catch (IOException e) {
+            // Print response
+            System.out.println("Response: " + response.getBody().asString());
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
