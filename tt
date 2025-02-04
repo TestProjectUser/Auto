@@ -1,7 +1,35 @@
-<dependencies>
-    <dependency>
-        <groupId>com.jayway.jsonpath</groupId>
-        <artifactId>json-path</artifactId>
-        <version>2.8.0</version>
-    </dependency>
-</dependencies>
+import com.jayway.jsonpath.DocumentContext;
+import com.jayway.jsonpath.JsonPath;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.file.StandardOpenOption;
+
+public class JSONPathUpdater {
+    public static void main(String[] args) {
+        String filePath = "data.json"; // Path to your JSON file
+
+        try {
+            // Read JSON file as String
+            String content = new String(Files.readAllBytes(Paths.get(filePath)));
+
+            // Parse JSON into DocumentContext
+            DocumentContext jsonContext = JsonPath.parse(content);
+
+            // Update values dynamically using JsonPath
+            jsonContext.set("$.name", "John Doe");  // Updating a string value
+            jsonContext.set("$.age", 30);           // Updating an integer value
+            jsonContext.set("$.items[0]", "UpdatedItem"); // Updating the first item in the array
+
+            // Get the updated JSON string
+            String updatedJson = jsonContext.jsonString();
+
+            // Write updated JSON back to file
+            Files.write(Paths.get(filePath), updatedJson.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+
+            System.out.println("JSON file updated successfully!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
