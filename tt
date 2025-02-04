@@ -2,29 +2,26 @@ import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.ssl.SSLContextBuilder;
-import org.apache.http.ssl.SSLContextBuilder;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import javax.net.ssl.SSLContext;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.security.Security;
 
+import javax.net.ssl.SSLContext;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class RestAssuredWithPem {
     public static void main(String[] args) throws Exception {
         String pemCertFile = "path/to/your/certificate.pem"; // Path to your PEM certificate file
         String pemKeyFile = "path/to/your/private-key.pem"; // Path to your PEM private key file
         String apiHost = "https://your-api-host.com"; // The host URL
-        String excelFilePath = "data.xlsx"; // Path to Excel file
         String jsonTemplatePath = "template.json"; // Path to JSON template file
 
         // Add BouncyCastle as a security provider
@@ -34,27 +31,27 @@ public class RestAssuredWithPem {
         X509Certificate cert = loadCertificate(pemCertFile);
         PrivateKey privateKey = loadPrivateKey(pemKeyFile);
 
-        // Create SSLContext
+        // Create SSLContext using the loaded PEM files
         SSLContext sslContext = SSLContextBuilder.create()
                 .loadKeyMaterial(cert, privateKey)
                 .loadTrustMaterial(new TrustSelfSignedStrategy()) // For self-signed certificates
                 .build();
 
-        // Set up the HttpClient with the SSLContext
+        // Set up HttpClient with the custom SSLContext
         CloseableHttpClient httpClient = HttpClients.custom()
                 .setSSLContext(sslContext)
                 .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)  // Disable hostname verification (useful for testing)
                 .build();
 
-        // Configure RestAssured to use the custom HttpClient
+        // Set RestAssured to use the custom HttpClient
         RestAssured.config = RestAssured.config().httpClient(
-                new HttpClientConfig().httpClient(httpClient));
+                new io.restassured.config.HttpClientConfig().httpClient(httpClient));
 
-        // Send a request to the API
+        // Send a POST request to the API
         Response response = RestAssured.given()
                 .baseUri(apiHost)
                 .header("Content-Type", "application/json")
-                .body("your_request_body_here") // Use your dynamically updated request body
+                .body("{\"key\": \"value\"}") // Your updated request body here
                 .when()
                 .post("/update") // The API endpoint
                 .then()
@@ -63,22 +60,4 @@ public class RestAssuredWithPem {
                 .response();
 
         // Print response
-        System.out.println(response.getBody().asString());
-    }
-
-    // Load certificate from PEM file
-    private static X509Certificate loadCertificate(String certPath) throws Exception {
-        File certFile = new File(certPath);
-        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(certFile.toPath()))) {
-            return (X509Certificate) pemParser.readObject();
-        }
-    }
-
-    // Load private key from PEM file
-    private static PrivateKey loadPrivateKey(String keyPath) throws Exception {
-        File keyFile = new File(keyPath);
-        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(keyFile.toPath()))) {
-            return (PrivateKey) pemParser.readObject();
-        }
-    }
-}
+        System.out.println
