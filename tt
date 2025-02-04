@@ -2,7 +2,6 @@ import io.restassured.RestAssured;
 import io.restassured.config.SSLConfig;
 import io.restassured.specification.RequestSpecification;
 import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.openssl.PEMReader;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import javax.net.ssl.SSLContext;
@@ -10,16 +9,15 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.KeyFactory;
 import java.security.cert.X509Certificate;
 import java.security.cert.CertificateFactory;
 import java.io.FileInputStream;
 import java.io.FileReader;
-import java.security.NoSuchAlgorithmException;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.KeyManagementException;
-import java.security.interfaces.RSAPrivateKey;
 
 public class RestAssuredSSLExample {
 
@@ -28,18 +26,20 @@ public class RestAssuredSSLExample {
         String certFilePath = "/path/to/certificate.pem";
         String keyFilePath = "/path/to/private_key.pem";
 
-        // Initialize the SSL context with PEM files
+        // Initialize the KeyStore with PEM files
         KeyStore keyStore = loadKeyStore(certFilePath, keyFilePath);
 
-        // Create SSLContext from KeyStore
-        SSLContext sslContext = createSSLContext(keyStore);
+        // Save the KeyStore to a temporary file
+        File tempKeyStoreFile = File.createTempFile("keystore", ".jks");
+        try (FileOutputStream fos = new FileOutputStream(tempKeyStoreFile)) {
+            keyStore.store(fos, "password".toCharArray());  // Save to keystore file with a password
+        }
 
-        // Set up RestAssured to use the SSL context
+        // Set up RestAssured to use the SSLConfig with the keystore file
         RestAssured.useRelaxedHTTPSValidation();
 
-        // Use the SSL context in RestAssured
         RequestSpecification requestSpec = RestAssured.given()
-                .config(RestAssured.config().sslConfig(new SSLConfig().keyStore(keyStore, "password")))
+                .config(RestAssured.config().sslConfig(new SSLConfig().keyStore(tempKeyStoreFile.getAbsolutePath(), "password")))
                 .baseUri("https://your.api.url");
 
         // Example POST request
@@ -60,7 +60,7 @@ public class RestAssuredSSLExample {
         FileInputStream certInputStream = new FileInputStream(certFilePath);
         X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
 
-        // Load the private key from the PEM file
+        // Load the private key
         PrivateKey privateKey = loadPrivateKey(keyFilePath);
 
         // Initialize KeyStore with the certificate and private key
@@ -78,26 +78,9 @@ public class RestAssuredSSLExample {
         pemParser.close();
 
         if (object instanceof org.bouncycastle.asn1.pkcs.RSAPrivateKey) {
-            RSAPrivateKey privateKey = (RSAPrivateKey) object;
-            return privateKey;
+            return (PrivateKey) object;
         } else {
             throw new IllegalArgumentException("Invalid PEM file format: Expected private key.");
         }
-    }
-
-    private static SSLContext createSSLContext(KeyStore keyStore) throws NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
-        // Initialize KeyManagerFactory
-        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        keyManagerFactory.init(keyStore, "password".toCharArray());
-
-        // TrustManagerFactory (Use default trust store)
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        trustManagerFactory.init((KeyStore) null);
-
-        // Initialize SSLContext with the KeyManager and TrustManager
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
-
-        return sslContext;
     }
 }
