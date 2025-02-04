@@ -1,38 +1,48 @@
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+
 import static io.restassured.RestAssured.given;
 
-public class RestAssuredSecureTest {
+public class RestAssuredExcelTest {
     public static void main(String[] args) {
-        String jsonFilePath = "data.json"; // Path to your JSON file
+        String excelFilePath = "data.xlsx"; // Path to your Excel file
+        String jsonTemplatePath = "template.json"; // Path to your JSON template file
         String apiHost = "https://your-api-host.com"; // API host URL
 
         try {
-            // Read JSON file content
-            String jsonContent = new String(Files.readAllBytes(Paths.get(jsonFilePath)));
+            // Step 1: Read 'fam' value from Excel file
+            FileInputStream fis = new FileInputStream(new File(excelFilePath));
+            Workbook workbook = new XSSFWorkbook(fis);
+            Sheet sheet = workbook.getSheetAt(0); // Assuming 'fam' is in the first sheet
+            Row row = sheet.getRow(1); // Read second row (first row is header)
+            String famValue = row.getCell(1).getStringCellValue(); // Read 'fam' value
+            workbook.close();
 
-            // Convert to JSON Object
+            // Step 2: Read JSON template file
+            String jsonContent = new String(Files.readAllBytes(Paths.get(jsonTemplatePath)));
+
+            // Step 3: Convert JSON string to JSONObject
             JSONObject jsonObject = new JSONObject(jsonContent);
 
-            // Modify JSON request body dynamically
-            JSONObject requestBody = new JSONObject();
-            requestBody.put("fam", jsonObject.getString("fam")); // Using 'fam' from file
-            requestBody.put("name", "John Doe");
-            requestBody.put("age", 30);
-            requestBody.put("items", new String[]{"UpdatedItem", "Item2"});
+            // Step 4: Update 'fam' value in JSON
+            jsonObject.put("fam", famValue);
 
-            // Setup RestAssured
+            // Step 5: Send POST request
             RestAssured.baseURI = apiHost;
 
-            // Send POST request with relaxed SSL validation
             Response response = given()
-                    .relaxedHTTPSValidation() // Ignore SSL issues (self-signed certs, expired certs, etc.)
+                    .relaxedHTTPSValidation() // Ignore SSL certificate issues
                     .header("Content-Type", "application/json")
                     .header("cust", "value") // Custom header
-                    .body(requestBody.toString())
+                    .body(jsonObject.toString()) // Use updated JSON as request body
                     .when()
                     .post("/update")  // API endpoint
                     .then()
@@ -40,8 +50,9 @@ public class RestAssuredSecureTest {
                     .extract()
                     .response();
 
-            // Print response
+            // Step 6: Print response
             System.out.println("Response: " + response.getBody().asString());
+
         } catch (Exception e) {
             e.printStackTrace();
         }
