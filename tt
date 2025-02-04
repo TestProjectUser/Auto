@@ -10,6 +10,8 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.KeyFactory;
 import java.security.cert.X509Certificate;
 import java.security.cert.CertificateFactory;
 import java.io.FileInputStream;
@@ -17,6 +19,7 @@ import java.io.FileReader;
 import java.security.NoSuchAlgorithmException;
 import java.security.KeyStoreException;
 import java.security.KeyManagementException;
+import java.security.interfaces.RSAPrivateKey;
 
 public class RestAssuredSSLExample {
 
@@ -57,9 +60,8 @@ public class RestAssuredSSLExample {
         FileInputStream certInputStream = new FileInputStream(certFilePath);
         X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
 
-        // Load the private key
-        PEMParser pemParser = new PEMParser(new FileReader(keyFilePath));
-        PrivateKey privateKey = (PrivateKey) pemParser.readObject();
+        // Load the private key from the PEM file
+        PrivateKey privateKey = loadPrivateKey(keyFilePath);
 
         // Initialize KeyStore with the certificate and private key
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -68,6 +70,19 @@ public class RestAssuredSSLExample {
         keyStore.setKeyEntry("private-key", privateKey, "password".toCharArray());  // Provide the key password
 
         return keyStore;
+    }
+
+    private static PrivateKey loadPrivateKey(String keyFilePath) throws Exception {
+        PEMParser pemParser = new PEMParser(new FileReader(keyFilePath));
+        Object object = pemParser.readObject();
+        pemParser.close();
+
+        if (object instanceof org.bouncycastle.asn1.pkcs.RSAPrivateKey) {
+            RSAPrivateKey privateKey = (RSAPrivateKey) object;
+            return privateKey;
+        } else {
+            throw new IllegalArgumentException("Invalid PEM file format: Expected private key.");
+        }
     }
 
     private static SSLContext createSSLContext(KeyStore keyStore) throws NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
