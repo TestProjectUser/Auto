@@ -2,6 +2,9 @@ import io.restassured.RestAssured;
 import io.restassured.config.SSLConfig;
 import io.restassured.specification.RequestSpecification;
 import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.PEMDecryptorProvider;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import javax.net.ssl.SSLContext;
@@ -77,7 +80,14 @@ public class RestAssuredSSLExample {
         Object object = pemParser.readObject();
         pemParser.close();
 
-        if (object instanceof org.bouncycastle.asn1.pkcs.RSAPrivateKey) {
+        if (object instanceof PEMKeyPair) {
+            // If it's a key pair (private + public key), extract the private key
+            return ((PEMKeyPair) object).getPrivateKey();
+        } else if (object instanceof PrivateKey) {
+            // If it's directly a private key
+            return (PrivateKey) object;
+        } else if (object instanceof org.bouncycastle.asn1.pkcs.RSAPrivateKey) {
+            // If it's a raw private key in ASN.1 format (e.g., PKCS#1)
             return (PrivateKey) object;
         } else {
             throw new IllegalArgumentException("Invalid PEM file format: Expected private key.");
