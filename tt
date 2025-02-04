@@ -1,27 +1,23 @@
 import io.restassured.RestAssured;
 import io.restassured.specification.RequestSpecification;
+import io.restassured.config.SSLConfig;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMReader;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 
 import javax.net.ssl.SSLContext;
-import java.io.FileReader;
-import java.io.FileInputStream;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.cert.CertificateFactory;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.security.cert.Certificate;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.PrivateKey;
-import java.io.InputStream;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.KeyManagerFactory;
+import java.security.KeyManagementException;
 
 public class RestAssuredSSLExample {
 
@@ -37,7 +33,7 @@ public class RestAssuredSSLExample {
         RestAssured.useRelaxedHTTPSValidation();
 
         RequestSpecification requestSpec = RestAssured.given()
-                .config(RestAssured.config().sslConfig(new SSLConfig().sslSocketFactory(new SSLSocketFactory(sslContext))))
+                .config(RestAssured.config().sslConfig(new SSLConfig().sslContext(sslContext)))
                 .baseUri("https://your.api.url");
 
         // Example POST request
@@ -53,14 +49,12 @@ public class RestAssuredSSLExample {
     }
 
     private static SSLContext createSSLContext(String certFilePath, String keyFilePath) throws Exception {
-        // Load the PEM certificate and key
+        // Load the PEM certificate
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-
-        // Load certificate
-        InputStream certInputStream = new FileInputStream(certFilePath);
+        FileInputStream certInputStream = new FileInputStream(certFilePath);
         X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
 
-        // Load private key
+        // Load the private key
         PEMParser pemParser = new PEMParser(new FileReader(keyFilePath));
         PrivateKey privateKey = (PrivateKey) pemParser.readObject();
 
