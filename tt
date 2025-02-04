@@ -4,6 +4,7 @@ import io.restassured.config.SSLConfig;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PEMReader;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.apache.http.impl.client.HttpClients;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.KeyManagerFactory;
@@ -32,8 +33,9 @@ public class RestAssuredSSLExample {
         // Set up RestAssured to use the SSL context
         RestAssured.useRelaxedHTTPSValidation();
 
+        // Configure RestAssured to use the SSLContext
         RequestSpecification requestSpec = RestAssured.given()
-                .config(RestAssured.config().sslConfig(new SSLConfig().sslContext(sslContext)))
+                .config(RestAssured.config().sslConfig(new SSLConfig().sslSocketFactory(sslContext.getSocketFactory())))
                 .baseUri("https://your.api.url");
 
         // Example POST request
