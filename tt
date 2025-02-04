@@ -2,27 +2,25 @@ import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.ssl.SSLContextBuilder;
 import org.apache.http.client.methods.HttpGet;
-
+import javax.net.ssl.SSLContext;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import java.security.Security;
-
-import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import java.security.Security;
 
 public class RestAssuredWithPem {
     public static void main(String[] args) throws Exception {
         String pemCertFile = "path/to/your/certificate.pem"; // Path to your PEM certificate file
         String pemKeyFile = "path/to/your/private-key.pem"; // Path to your PEM private key file
-        String apiHost = "https://your-api-host.com"; // The host URL
-        String jsonTemplatePath = "template.json"; // Path to JSON template file
+        String apiHost = "https://your-api-host.com"; // API Host URL
 
         // Add BouncyCastle as a security provider
         Security.addProvider(new BouncyCastleProvider());
@@ -34,7 +32,7 @@ public class RestAssuredWithPem {
         // Create SSLContext using the loaded PEM files
         SSLContext sslContext = SSLContextBuilder.create()
                 .loadKeyMaterial(cert, privateKey)
-                .loadTrustMaterial(new TrustSelfSignedStrategy()) // For self-signed certificates
+                .loadTrustMaterial(new org.apache.http.conn.ssl.TrustSelfSignedStrategy()) // For self-signed certificates
                 .build();
 
         // Set up HttpClient with the custom SSLContext
