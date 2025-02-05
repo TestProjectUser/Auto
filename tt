@@ -1,53 +1,93 @@
 import io.restassured.RestAssured;
+import io.restassured.config.SSLConfig;
 import io.restassured.specification.RequestSpecification;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
+
 import javax.net.ssl.SSLContext;
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.security.*;
-import java.security.cert.*;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.conn.ssl.SSLContexts;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 
-public class RestAssuredWithCustomSSL {
+public class RestAssuredPEMExample {
+
     public static void main(String[] args) throws Exception {
-        String certPath = "path/to/cert.pem";
-        String apiUrl = "https://your-secure-api.com/api";
+        // Paths to your certificate and key PEM files
+        String certFilePath = "/path/to/cert.pem";  
+        String keyFilePath = "/path/to/key.pem";    
 
-        SSLContext sslContext = createSSLContext(certPath);
+        // Register BouncyCastle as a security provider
+        Security.addProvider(new BouncyCastleProvider());
 
-        RestAssured.baseURI = apiUrl;
-        RequestSpecification request = RestAssured.given()
-            .relaxedHTTPSValidation() // Allows self-signed certs
-            .header("Content-Type", "application/json")
-            .body("{\"key\": \"value\"}") // Replace with actual JSON
-            .config(RestAssured.config().sslConfig(
-                new io.restassured.config.SSLConfig().sslSocketFactory(
-                    new SSLSocketFactory(sslContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER)
-                )
-            ));
+        // Load PEM certificate and private key
+        KeyStore keyStore = loadKeyStore(certFilePath, keyFilePath, "changeit");
 
-        // Perform POST request
-        String response = request.post().then().extract().asString();
+        // Set up SSLContext
+        SSLContext sslContext = createSSLContext(keyStore, "changeit");
+
+        // Configure RestAssured with SSL
+        RestAssured.useRelaxedHTTPSValidation();
+        RequestSpecification requestSpec = RestAssured.given()
+                .config(RestAssured.config().sslConfig(new SSLConfig().sslSocketFactory(sslContext.getSocketFactory())))
+                .baseUri("https://your.api.url");
+
+        // Send an API request
+        String response = requestSpec
+                .body("{ \"data\": \"value\" }")  // Replace with actual request body
+                .when()
+                .post("/api/endpoint")
+                .then()
+                .statusCode(200)
+                .extract().asString();
+
         System.out.println("Response: " + response);
     }
 
-    private static SSLContext createSSLContext(String certPath) throws Exception {
-        // Load Certificate
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        Certificate cert;
-        try (InputStream certInput = Files.newInputStream(Paths.get(certPath))) {
-            cert = cf.generateCertificate(certInput);
-        }
+    private static KeyStore loadKeyStore(String certFilePath, String keyFilePath, String password) throws Exception {
+        // Load the X.509 Certificate
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+        FileInputStream certInputStream = new FileInputStream(certFilePath);
+        X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
+        certInputStream.close();
 
-        // Create TrustStore
-        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        trustStore.load(null, null);
-        trustStore.setCertificateEntry("custom_cert", cert);
+        // Load the private key from PEM
+        PrivateKey privateKey = loadPrivateKey(keyFilePath);
 
-        // Create SSLContext using TrustStore
-        return SSLContexts.custom()
-                .loadTrustMaterial(trustStore, null)
-                .build();
+        // Initialize a KeyStore
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("cert", cert);
+        keyStore.setKeyEntry("private-key", privateKey, password.toCharArray(), new Certificate[]{cert});
+
+        return keyStore;
+    }
+
+    private static PrivateKey loadPrivateKey(String keyFilePath) throws Exception {
+        FileReader keyReader = new FileReader(keyFilePath);
+        PEMParser pemParser = new PEMParser(keyReader);
+        Object object = pemParser.readObject();
+        pemParser.close();
+        keyReader.close();
+
+        // Convert PEM key to PrivateKey format
+        return new JcaPEMKeyConverter().setProvider("BC").getPrivateKey((org.bouncycastle.openssl.PEMKeyPair) object);
+    }
+
+    private static SSLContext createSSLContext(KeyStore keyStore, String password) throws Exception {
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+        keyManagerFactory.init(keyStore, password.toCharArray());
+
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
+        trustManagerFactory.init((KeyStore) null);
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
+        return sslContext;
     }
 }
