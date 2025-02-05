@@ -1,59 +1,24 @@
-import pandas as pd
-import requests
-import json
+// Get API response as JSON
+let responseJson = pm.response.json();
 
-# File paths
-INPUT_EXCEL = "input.xlsx"  # Input Excel file
-OUTPUT_EXCEL = "output.xlsx"  # Output Excel file
-JSON_TEMPLATE = "template.json"  # JSON template file
-API_URL = "https://your-api-endpoint.com"  # Replace with actual API endpoint
-CERT_FILE = "cert.pem"  # SSL Certificate
-KEY_FILE = "key.pem"  # SSL Key
+// Convert response to string
+let responseData = JSON.stringify(responseJson);
 
-# Read input Excel file (assuming three columns: col1, col2, col3)
-df = pd.read_excel(INPUT_EXCEL, usecols=["col1", "col2", "col3"])
+// Get current iteration ID
+let recordId = pm.iterationData.get("id");
 
-# Load JSON template
-with open(JSON_TEMPLATE, "r") as f:
-    json_template = json.load(f)
+// Get existing responses from globals
+let storedResponses = pm.globals.get("allResponses");
 
-# Prepare output data list
-output_data = []
+// If no previous responses, initialize an empty array
+if (!storedResponses) {
+    storedResponses = [];
+} else {
+    storedResponses = JSON.parse(storedResponses);
+}
 
-# Iterate over rows and send API requests
-for _, row in df.iterrows():
-    # Update JSON template with values from Excel
-    payload = json_template.copy()
-    payload["field1"] = row["col1"]
-    payload["field2"] = row["col2"]
-    payload["field3"] = row["col3"]
+// Append the new response
+storedResponses.push({ id: recordId, response: responseData });
 
-    try:
-        # Make API POST request with SSL certs
-        response = requests.post(
-            API_URL,
-            json=payload,
-            cert=(CERT_FILE, KEY_FILE),
-            headers={"Content-Type": "application/json"}
-        )
-
-        # Store response
-        response_data = response.json()
-    except Exception as e:
-        response_data = {"error": str(e)}
-
-    # Append data for output
-    output_data.append({
-        "col1": row["col1"],
-        "col2": row["col2"],
-        "col3": row["col3"],
-        "response": json.dumps(response_data)  # Convert response to string
-    })
-
-# Convert output data to DataFrame
-output_df = pd.DataFrame(output_data)
-
-# Save to output Excel file
-output_df.to_excel(OUTPUT_EXCEL, index=False)
-
-print(f"Output saved to {OUTPUT_EXCEL}")
+// Store the updated responses back in globals
+pm.globals.set("allResponses", JSON.stringify(storedResponses));
