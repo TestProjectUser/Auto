@@ -1,96 +1,59 @@
 import io.restassured.RestAssured;
-import io.restassured.config.SSLConfig;
 import io.restassured.specification.RequestSpecification;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.openssl.PEMDecryptorProvider;
-import org.bouncycastle.openssl.PEMKeyPair;
-import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.cert.X509Certificate;
-import java.security.cert.CertificateFactory;
-import java.io.FileInputStream;
-import java.io.FileReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.KeyManagementException;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.*;
+import java.security.cert.*;
+import java.security.cert.Certificate;
+import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.SSLContexts;
 
-public class RestAssuredSSLExample {
-
+public class RestAssuredWithSSL {
     public static void main(String[] args) throws Exception {
-        // Load PEM certificate and key
-        String certFilePath = "/path/to/certificate.pem";
-        String keyFilePath = "/path/to/private_key.pem";
+        String certPath = "path/to/cert.pem";
+        String keyPath = "path/to/key.pem";
+        String apiUrl = "http://asd/api/endpoint"; // Your API URL
 
-        // Initialize the KeyStore with PEM files
-        KeyStore keyStore = loadKeyStore(certFilePath, keyFilePath);
+        SSLContext sslContext = createSSLContext(certPath, keyPath);
 
-        // Save the KeyStore to a temporary file
-        File tempKeyStoreFile = File.createTempFile("keystore", ".jks");
-        try (FileOutputStream fos = new FileOutputStream(tempKeyStoreFile)) {
-            keyStore.store(fos, "password".toCharArray());  // Save to keystore file with a password
-        }
+        // Configure RestAssured with SSL
+        RestAssured.useRelaxedHTTPSValidation(); // Ignore SSL issues (Optional)
+        RestAssured.baseURI = apiUrl;
+        
+        RequestSpecification request = RestAssured.given()
+            .relaxedHTTPSValidation()
+            .header("Content-Type", "application/json")
+            .body("{\"key\": \"value\"}") // Replace with actual JSON
 
-        // Set up RestAssured to use the SSLConfig with the keystore file
-        RestAssured.useRelaxedHTTPSValidation();
+            .config(RestAssured.config().sslConfig(
+                new io.restassured.config.SSLConfig().sslSocketFactory(
+                    new SSLSocketFactory(sslContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER)
+                )
+            ));
 
-        RequestSpecification requestSpec = RestAssured.given()
-                .config(RestAssured.config().sslConfig(new SSLConfig().keyStore(tempKeyStoreFile.getAbsolutePath(), "password")))
-                .baseUri("https://your.api.url");
-
-        // Example POST request
-        String response = requestSpec
-                .body("{ \"data\": \"value\" }")  // Replace with actual request body
-                .when()
-                .post("/api/endpoint")
-                .then()
-                .statusCode(200)
-                .extract().asString();
-
-        System.out.println(response);
+        // Perform POST request
+        String response = request.post().then().extract().asString();
+        System.out.println("Response: " + response);
     }
 
-    private static KeyStore loadKeyStore(String certFilePath, String keyFilePath) throws Exception {
-        // Load the PEM certificate
-        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        FileInputStream certInputStream = new FileInputStream(certFilePath);
-        X509Certificate cert = (X509Certificate) certFactory.generateCertificate(certInputStream);
+    private static SSLContext createSSLContext(String certPath, String keyPath) throws Exception {
+        // Load Certificate
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        Certificate cert;
+        try (InputStream certInput = Files.newInputStream(Paths.get(certPath))) {
+            cert = cf.generateCertificate(certInput);
+        }
 
-        // Load the private key
-        PrivateKey privateKey = loadPrivateKey(keyFilePath);
-
-        // Initialize KeyStore with the certificate and private key
+        // Create KeyStore
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, null);  // Initialize empty keystore
+        keyStore.load(null, null);
         keyStore.setCertificateEntry("cert", cert);
-        keyStore.setKeyEntry("private-key", privateKey, "password".toCharArray());  // Provide the key password
 
-        return keyStore;
-    }
-
-    private static PrivateKey loadPrivateKey(String keyFilePath) throws Exception {
-        PEMParser pemParser = new PEMParser(new FileReader(keyFilePath));
-        Object object = pemParser.readObject();
-        pemParser.close();
-
-        if (object instanceof PEMKeyPair) {
-            // If it's a key pair (private + public key), extract the private key
-            return ((PEMKeyPair) object).getPrivateKey();
-        } else if (object instanceof PrivateKey) {
-            // If it's directly a private key
-            return (PrivateKey) object;
-        } else if (object instanceof org.bouncycastle.asn1.pkcs.RSAPrivateKey) {
-            // If it's a raw private key in ASN.1 format (e.g., PKCS#1)
-            return (PrivateKey) object;
-        } else {
-            throw new IllegalArgumentException("Invalid PEM file format: Expected private key.");
-        }
+        // Create SSLContext
+        return SSLContexts.custom()
+                .loadTrustMaterial(keyStore, null)
+                .build();
     }
 }
