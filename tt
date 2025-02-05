@@ -1,54 +1,59 @@
-import io.restassured.RestAssured;
-import io.restassured.config.SSLConfig;
-import io.restassured.specification.RequestSpecification;
+import pandas as pd
+import requests
+import json
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-import java.io.FileInputStream;
-import java.security.KeyStore;
-import java.security.SecureRandom;
+# File paths
+INPUT_EXCEL = "input.xlsx"  # Input Excel file
+OUTPUT_EXCEL = "output.xlsx"  # Output Excel file
+JSON_TEMPLATE = "template.json"  # JSON template file
+API_URL = "https://your-api-endpoint.com"  # Replace with actual API endpoint
+CERT_FILE = "cert.pem"  # SSL Certificate
+KEY_FILE = "key.pem"  # SSL Key
 
-public class RestAssuredSSLExample {
-    
-    public static void main(String[] args) throws Exception {
-        // Path to your PKCS12 (.p12) keystore file
-        String keystorePath = "/path/to/keystore.p12";  // Replace with your file path
-        String keystorePassword = "changeit";  // Replace with your password
+# Read input Excel file (assuming three columns: col1, col2, col3)
+df = pd.read_excel(INPUT_EXCEL, usecols=["col1", "col2", "col3"])
 
-        // Load the PKCS12 keystore
-        KeyStore keyStore = KeyStore.getInstance("PKCS12");
-        try (FileInputStream keyStoreFile = new FileInputStream(keystorePath)) {
-            keyStore.load(keyStoreFile, keystorePassword.toCharArray());
-        }
+# Load JSON template
+with open(JSON_TEMPLATE, "r") as f:
+    json_template = json.load(f)
 
-        // Initialize KeyManagerFactory with the keystore
-        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-        keyManagerFactory.init(keyStore, keystorePassword.toCharArray());
+# Prepare output data list
+output_data = []
 
-        // Initialize TrustManagerFactory with the default CA certificates
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("SunX509");
-        trustManagerFactory.init((KeyStore) null); // Use system's default trust store
+# Iterate over rows and send API requests
+for _, row in df.iterrows():
+    # Update JSON template with values from Excel
+    payload = json_template.copy()
+    payload["field1"] = row["col1"]
+    payload["field2"] = row["col2"]
+    payload["field3"] = row["col3"]
 
-        // Create SSLContext with KeyManagers and TrustManagers
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
+    try:
+        # Make API POST request with SSL certs
+        response = requests.post(
+            API_URL,
+            json=payload,
+            cert=(CERT_FILE, KEY_FILE),
+            headers={"Content-Type": "application/json"}
+        )
 
-        // ✅ Use SSLContext with RestAssured without deprecated methods
-        RestAssured.useRelaxedHTTPSValidation();
-        RequestSpecification requestSpec = RestAssured.given()
-                .config(RestAssured.config().sslConfig(new SSLConfig().sslContext(sslContext)))
-                .baseUri("https://your.api.url");
+        # Store response
+        response_data = response.json()
+    except Exception as e:
+        response_data = {"error": str(e)}
 
-        // Send an API request
-        String response = requestSpec
-                .body("{ \"data\": \"value\" }")  // Replace with actual request body
-                .when()
-                .post("/api/endpoint")
-                .then()
-                .statusCode(200)  // Adjust expected status code if needed
-                .extract().asString();
+    # Append data for output
+    output_data.append({
+        "col1": row["col1"],
+        "col2": row["col2"],
+        "col3": row["col3"],
+        "response": json.dumps(response_data)  # Convert response to string
+    })
 
-        System.out.println("Response: " + response);
-    }
-}
+# Convert output data to DataFrame
+output_df = pd.DataFrame(output_data)
+
+# Save to output Excel file
+output_df.to_excel(OUTPUT_EXCEL, index=False)
+
+print(f"Output saved to {OUTPUT_EXCEL}")
