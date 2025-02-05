@@ -6,27 +6,21 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.*;
-import java.security.cert.Certificate;
 import org.apache.http.conn.ssl.SSLSocketFactory;
 import org.apache.http.conn.ssl.SSLContexts;
 
-public class RestAssuredWithSSL {
+public class RestAssuredWithCustomSSL {
     public static void main(String[] args) throws Exception {
         String certPath = "path/to/cert.pem";
-        String keyPath = "path/to/key.pem";
-        String apiUrl = "http://asd/api/endpoint"; // Your API URL
+        String apiUrl = "https://your-secure-api.com/api";
 
-        SSLContext sslContext = createSSLContext(certPath, keyPath);
+        SSLContext sslContext = createSSLContext(certPath);
 
-        // Configure RestAssured with SSL
-        RestAssured.useRelaxedHTTPSValidation(); // Ignore SSL issues (Optional)
         RestAssured.baseURI = apiUrl;
-        
         RequestSpecification request = RestAssured.given()
-            .relaxedHTTPSValidation()
+            .relaxedHTTPSValidation() // Allows self-signed certs
             .header("Content-Type", "application/json")
             .body("{\"key\": \"value\"}") // Replace with actual JSON
-
             .config(RestAssured.config().sslConfig(
                 new io.restassured.config.SSLConfig().sslSocketFactory(
                     new SSLSocketFactory(sslContext, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER)
@@ -38,7 +32,7 @@ public class RestAssuredWithSSL {
         System.out.println("Response: " + response);
     }
 
-    private static SSLContext createSSLContext(String certPath, String keyPath) throws Exception {
+    private static SSLContext createSSLContext(String certPath) throws Exception {
         // Load Certificate
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         Certificate cert;
@@ -46,15 +40,14 @@ public class RestAssuredWithSSL {
             cert = cf.generateCertificate(certInput);
         }
 
-        // Create KeyStore
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, null);
-        keyStore.setCertificateEntry("cert", cert);
+        // Create TrustStore
+        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        trustStore.load(null, null);
+        trustStore.setCertificateEntry("custom_cert", cert);
 
-        // Create SSLContext
+        // Create SSLContext using TrustStore
         return SSLContexts.custom()
-                .loadTrustMaterial(keyStore, null)
+                .loadTrustMaterial(trustStore, null)
                 .build();
     }
 }
-dd
