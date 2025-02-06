@@ -1,19 +1,13 @@
-const fs = require('fs');
-const json2csv = require('json2csv').parse;
+let responseBody = JSON.parse(responseBody);
 
-// Read Newman output
-const rawData = fs.readFileSync('output.json');
-const newmanResults = JSON.parse(rawData);
+// Create an object to store in the CSV
+let output = {
+    id: pm.variables.get("id"),
+    name: pm.variables.get("name"),
+    response: JSON.stringify(responseBody)  // Convert response to a string
+};
 
-// Extract data from responses
-const records = newmanResults.run.executions.map(exec => ({
-    id: exec.item.name,  
-    request: JSON.stringify(exec.request.body),
-    response: exec.response ? exec.response.stream.toString() : 'No Response'
-}));
-
-// Convert to CSV format
-const csv = json2csv(records);
-fs.writeFileSync('final_output.csv', csv);
-
-console.log('CSV file generated: final_output.csv');
+// Push the output to the collection run
+pm.test("Store response", function () {
+    console.log(JSON.stringify(output));
+});
