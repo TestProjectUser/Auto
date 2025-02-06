@@ -1,24 +1,19 @@
-// Get API response as JSON
-let responseJson = pm.response.json();
+const fs = require('fs');
+const json2csv = require('json2csv').parse;
 
-// Convert response to string
-let responseData = JSON.stringify(responseJson);
+// Read Newman output
+const rawData = fs.readFileSync('output.json');
+const newmanResults = JSON.parse(rawData);
 
-// Get current iteration ID
-let recordId = pm.iterationData.get("id");
+// Extract data from responses
+const records = newmanResults.run.executions.map(exec => ({
+    id: exec.item.name,  
+    request: JSON.stringify(exec.request.body),
+    response: exec.response ? exec.response.stream.toString() : 'No Response'
+}));
 
-// Get existing responses from globals
-let storedResponses = pm.globals.get("allResponses");
+// Convert to CSV format
+const csv = json2csv(records);
+fs.writeFileSync('final_output.csv', csv);
 
-// If no previous responses, initialize an empty array
-if (!storedResponses) {
-    storedResponses = [];
-} else {
-    storedResponses = JSON.parse(storedResponses);
-}
-
-// Append the new response
-storedResponses.push({ id: recordId, response: responseData });
-
-// Store the updated responses back in globals
-pm.globals.set("allResponses", JSON.stringify(storedResponses));
+console.log('CSV file generated: final_output.csv');
