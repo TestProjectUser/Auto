@@ -1,40 +1,45 @@
-' Create Excel Object
-Set objExcel = CreateObject("Excel.Application")
-objExcel.Visible = False ' Set to True if you want to see the Excel window
+' Set folder path and output file
+Dim folderPath, wordFilePath
+folderPath = "C:\Screenshots\"   ' Change to your folder path
+wordFilePath = folderPath & "ConsolidatedScreenshots.docx"
 
-' Path to the Excel file
-excelPath = "C:\Path\To\Your\File.xlsx"
+' Create FileSystemObject
+Dim fso, folder, file
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set folder = fso.GetFolder(folderPath)
 
-' Open or create a new workbook
-On Error Resume Next
-Set objWorkbook = objExcel.Workbooks.Open(excelPath)
-If Err.Number <> 0 Then
-    Set objWorkbook = objExcel.Workbooks.Add()
-    Err.Clear
-End If
-On Error GoTo 0
+' Create Word application
+Dim wordApp, wordDoc
+Set wordApp = CreateObject("Word.Application")
+wordApp.Visible = True  ' Set to False if you don't want Word to open
 
-' Get the first worksheet
-Set objSheet = objWorkbook.Sheets(1)
+Set wordDoc = wordApp.Documents.Add
 
-' Example: array of keys to write
-arrKeys = Array("Name", "Age", "City", "Gender")
-
-' Row and column to start writing
-row = 1
-col = 1
-
-' Write each key in a row
-For i = 0 To UBound(arrKeys)
-    objSheet.Cells(row, col + i).Value = arrKeys(i)
+' Loop through files in folder
+For Each file In folder.Files
+    ' Check if file is an image (add more extensions if needed)
+    If LCase(fso.GetExtensionName(file.Name)) = "png" Or _
+       LCase(fso.GetExtensionName(file.Name)) = "jpg" Or _
+       LCase(fso.GetExtensionName(file.Name)) = "jpeg" Or _
+       LCase(fso.GetExtensionName(file.Name)) = "bmp" Then
+       
+        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
+        wordDoc.Paragraphs.Last.Range.Text = file.Name
+        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
+        wordDoc.InlineShapes.AddPicture file.Path
+        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
+    End If
 Next
 
-' Save the file
-objWorkbook.SaveAs excelPath
-objWorkbook.Close False
-objExcel.Quit
+' Save and close
+wordDoc.SaveAs wordFilePath
+wordDoc.Close
+wordApp.Quit
 
-' Release the objects
-Set objSheet = Nothing
-Set objWorkbook = Nothing
-Set objExcel = Nothing
+' Clean up
+Set wordDoc = Nothing
+Set wordApp = Nothing
+Set folder = Nothing
+Set fso = Nothing
+
+MsgBox "All screenshots consolidated into Word document: " & wordFilePath
