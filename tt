@@ -1,8 +1,33 @@
-Dim endRange
-Set endRange = wordDoc.Range
-endRange.Collapse 0  ' Collapse to end of document (0 = wdCollapseEnd)
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set wordApp = CreateObject("Word.Application")
+Set doc = wordApp.Documents.Add
+wordApp.Visible = True
 
-endRange.InsertParagraphAfter
-endRange.Collapse 0
-endRange.InlineShapes.AddPicture fileList(i)
-endRange.InsertParagraphAfter
+folderPath = "C:\Your\ImageFolder\"  ' Change this path
+Set folder = fso.GetFolder(folderPath)
+
+' Insert Image1.png and Image3.png first
+InsertImage folderPath & "Image1.png"
+InsertImage folderPath & "Image3.png"
+
+' Insert all other PNGs
+For Each file In folder.Files
+  If LCase(fso.GetExtensionName(file.Name)) = "png" Then
+    If file.Name <> "Image1.png" And file.Name <> "Image3.png" Then
+      InsertImage file.Path
+    End If
+  End If
+Next
+
+doc.SaveAs "C:\Your\Output.docx"  ' Change this path
+doc.Close
+wordApp.Quit
+
+MsgBox "Done!"
+
+Sub InsertImage(imagePath)
+  If fso.FileExists(imagePath) Then
+    wordApp.Selection.InlineShapes.AddPicture imagePath
+    wordApp.Selection.TypeParagraph
+  End If
+End Sub
