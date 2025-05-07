@@ -1,34 +1,55 @@
-' Set folder path and output file
+' Set folder path and output Word file path
 Dim folderPath, wordFilePath
-folderPath = "C:\Screenshots\"   ' Change to your folder path
+folderPath = "C:\Screenshots\"   ' Change this to your folder path
 wordFilePath = folderPath & "ConsolidatedScreenshots.docx"
 
-' Create FileSystemObject
-Dim fso, folder, file
+' Create FileSystemObject and collect image file names
+Dim fso, folder, file, fileList()
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set folder = fso.GetFolder(folderPath)
 
-' Create Word application
-Dim wordApp, wordDoc
-Set wordApp = CreateObject("Word.Application")
-wordApp.Visible = True  ' Set to False if you don't want Word to open
+ReDim fileList(folder.Files.Count - 1)
+Dim i : i = 0
 
-Set wordDoc = wordApp.Documents.Add
-
-' Loop through files in folder
+' Collect only image files
 For Each file In folder.Files
-    ' Check if file is an image (add more extensions if needed)
     If LCase(fso.GetExtensionName(file.Name)) = "png" Or _
        LCase(fso.GetExtensionName(file.Name)) = "jpg" Or _
        LCase(fso.GetExtensionName(file.Name)) = "jpeg" Or _
        LCase(fso.GetExtensionName(file.Name)) = "bmp" Then
        
-        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
-        wordDoc.Paragraphs.Last.Range.Text = file.Name
-        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
-        wordDoc.InlineShapes.AddPicture file.Path
-        wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
+       fileList(i) = file.Path
+       i = i + 1
     End If
+Next
+
+' Resize array to actual count
+ReDim Preserve fileList(i - 1)
+
+' Sort the fileList array alphabetically (ascending)
+Dim j, temp
+For i = 0 To UBound(fileList) - 1
+    For j = i + 1 To UBound(fileList)
+        If UCase(fileList(i)) > UCase(fileList(j)) Then
+            temp = fileList(i)
+            fileList(i) = fileList(j)
+            fileList(j) = temp
+        End If
+    Next
+Next
+
+' Create Word application
+Dim wordApp, wordDoc
+Set wordApp = CreateObject("Word.Application")
+wordApp.Visible = True
+
+Set wordDoc = wordApp.Documents.Add
+
+' Insert images into Word
+For i = 0 To UBound(fileList)
+    wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
+    wordDoc.InlineShapes.AddPicture fileList(i)
+    wordDoc.Paragraphs.Last.Range.InsertParagraphAfter
 Next
 
 ' Save and close
@@ -42,4 +63,4 @@ Set wordApp = Nothing
 Set folder = Nothing
 Set fso = Nothing
 
-MsgBox "All screenshots consolidated into Word document: " & wordFilePath
+MsgBox "Screenshots consolidated in correct order into: " & wordFilePath
