@@ -1,33 +1,9 @@
-Set fso = CreateObject("Scripting.FileSystemObject")
-Set wordApp = CreateObject("Word.Application")
-Set doc = wordApp.Documents.Add
-wordApp.Visible = True
+import requests
 
-folderPath = "C:\Your\ImageFolder\"  ' Change this path
-Set folder = fso.GetFolder(folderPath)
+# Step 1: Call the first API
+first_response = requests.get("https://example.com/first-api")
 
-' Insert Image1.png and Image3.png first
-InsertImage folderPath & "Image1.png"
-InsertImage folderPath & "Image3.png"
+# Step 2: Extract and format cookies into a header string
+cookie_header = '; '.join([f"{key}={value}" for key, value in first_response.cookies.items()])
 
-' Insert all other PNGs
-For Each file In folder.Files
-  If LCase(fso.GetExtensionName(file.Name)) = "png" Then
-    If file.Name <> "Image1.png" And file.Name <> "Image3.png" Then
-      InsertImage file.Path
-    End If
-  End If
-Next
-
-doc.SaveAs "C:\Your\Output.docx"  ' Change this path
-doc.Close
-wordApp.Quit
-
-MsgBox "Done!"
-
-Sub InsertImage(imagePath)
-  If fso.FileExists(imagePath) Then
-    wordApp.Selection.InlineShapes.AddPicture imagePath
-    wordApp.Selection.TypeParagraph
-  End If
-End Sub
+# Now cookie_header is like: "sessionid=abc123; csrftoken=xyz456"
