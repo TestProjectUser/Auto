@@ -1,9 +1,16 @@
-import requests
+import win32com.client
 
-# Step 1: Call the first API
-first_response = requests.get("https://example.com/first-api")
+# Open Excel
+excel = win32com.client.Dispatch("Excel.Application")
+excel.Visible = False  # Set to True to show the Excel window
 
-# Step 2: Extract and format cookies into a header string
-cookie_header = '; '.join([f"{key}={value}" for key, value in first_response.cookies.items()])
+# Open the workbook (DO NOT supply password unless file is workbook-level protected)
+wb = excel.Workbooks.Open(r"C:\Path\To\File1.xlsm")  # Update with full path
 
-# Now cookie_header is like: "sessionid=abc123; csrftoken=xyz456"
+# Run the macro (use full name if module is required, e.g., "Module1.YourMacro")
+macro_name = "YourMacroName"  # Update with your actual macro name
+excel.Application.Run(macro_name)
+
+# Save and close the workbook
+wb.Close(SaveChanges=True)
+excel.Quit()
