@@ -1,16 +1,28 @@
 import win32com.client
+import datetime
 
-# Open Excel
-excel = win32com.client.Dispatch("Excel.Application")
-excel.Visible = False  # Set to True to show the Excel window
+def check_mail_received_today_with_subject(subject_text):
+    outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+    inbox = outlook.GetDefaultFolder(6)  # 6 = Inbox
+    messages = inbox.Items
+    messages.Sort("[ReceivedTime]", True)  # Sort by most recent
 
-# Open the workbook (DO NOT supply password unless file is workbook-level protected)
-wb = excel.Workbooks.Open(r"C:\Path\To\File1.xlsm")  # Update with full path
+    today = datetime.datetime.now().date()
 
-# Run the macro (use full name if module is required, e.g., "Module1.YourMacro")
-macro_name = "YourMacroName"  # Update with your actual macro name
-excel.Application.Run(macro_name)
+    for message in messages:
+        try:
+            received_time = message.ReceivedTime
+            subject = message.Subject
 
-# Save and close the workbook
-wb.Close(SaveChanges=True)
-excel.Quit()
+            if received_time.date() == today and subject_text.lower() in subject.lower():
+                print(f"✅ Mail found: '{subject}' at {received_time}")
+                return True
+
+        except Exception as e:
+            continue
+
+    print("❌ No matching mail found today.")
+    return False
+
+# Example usage:
+check_mail_received_today_with_subject("approved")
