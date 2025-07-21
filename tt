@@ -1,28 +1,39 @@
-import win32com.client
-import datetime
+import pandas as pd
 
-def check_mail_received_today_with_subject(subject_text):
-    outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-    inbox = outlook.GetDefaultFolder(6)  # 6 = Inbox
-    messages = inbox.Items
-    messages.Sort("[ReceivedTime]", True)  # Sort by most recent
+def capture_values_from_excel(
+    file_path,
+    sheets_to_read,
+    testname_col,
+    target_testname,
+    columns_to_capture,
+    output_sheet_name="ExtractedData"
+):
+    all_results = []
 
-    today = datetime.datetime.now().date()
-
-    for message in messages:
+    # Read and filter from each specified sheet
+    for sheet in sheets_to_read:
         try:
-            received_time = message.ReceivedTime
-            subject = message.Subject
-
-            if received_time.date() == today and subject_text.lower() in subject.lower():
-                print(f"✅ Mail found: '{subject}' at {received_time}")
-                return True
-
+            df = pd.read_excel(file_path, sheet_name=sheet, engine='openpyxl' if file_path.endswith('.xlsx') else 'xlrd')
         except Exception as e:
+            print(f"Error reading sheet '{sheet}': {e}")
             continue
 
-    print("❌ No matching mail found today.")
-    return False
+        if testname_col not in df.columns:
+            print(f"Column '{testname_col}' not found in sheet '{sheet}'")
+            continue
 
-# Example usage:
-check_mail_received_today_with_subject("approved")
+        filtered_df = df[df[testname_col] == target_testname]
+        filtered_data = filtered_df[columns_to_capture]  # Only take specified columns
+
+        all_results.append(filtered_data)
+
+    # Combine all results into a single DataFrame
+    final_df = pd.concat(all_results, ignore_index=True)
+
+    # Write to new sheet (overwrite if exists)
+    try:
+        with pd.ExcelWriter(file_path, mode='a', if_sheet_exists='replace', engine='openpyxl') as writer:
+            final_df.to_excel(writer, sheet_name=output_sheet_name, index=False)
+        print(f"Data written to sheet '{output_sheet_name}' in file '{file_path}'")
+    except Exception as e:
+        print(f"Error writing to Excel file: {e}")
