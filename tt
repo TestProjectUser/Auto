@@ -1,39 +1,43 @@
 import pandas as pd
 
-def capture_values_from_excel(
-    file_path,
-    sheets_to_read,
-    testname_col,
-    target_testname,
-    columns_to_capture,
-    output_sheet_name="ExtractedData"
-):
-    all_results = []
+def test(sheetname):
+    return f"{sheetname}_Test"  # Change if needed
 
-    # Read and filter from each specified sheet
-    for sheet in sheets_to_read:
+def process_excel_easy(file_path, sheet_column_map, output_sheet="FinalOutput"):
+    all_rows = []
+
+    for sheet, columns in sheet_column_map.items():
         try:
-            df = pd.read_excel(file_path, sheet_name=sheet, engine='openpyxl' if file_path.endswith('.xlsx') else 'xlrd')
-        except Exception as e:
-            print(f"Error reading sheet '{sheet}': {e}")
+            df = pd.read_excel(file_path, sheet_name=sheet)
+        except:
+            print(f"Sheet {sheet} not found")
             continue
 
-        if testname_col not in df.columns:
-            print(f"Column '{testname_col}' not found in sheet '{sheet}'")
+        testname_value = test(sheet)
+
+        if "TestName" not in df.columns:
+            print(f"'TestName' missing in {sheet}")
             continue
 
-        filtered_df = df[df[testname_col] == target_testname]
-        filtered_data = filtered_df[columns_to_capture]  # Only take specified columns
+        match = df[df["TestName"] == testname_value]
+        if match.empty:
+            print(f"No match in {sheet} for {testname_value}")
+            continue
 
-        all_results.append(filtered_data)
+        row = match.iloc[0]
+        data = {col: row.get(col, "") for col in columns}
+        data["Sheet"] = sheet
+        all_rows.append(data)
 
-    # Combine all results into a single DataFrame
-    final_df = pd.concat(all_results, ignore_index=True)
-
-    # Write to new sheet (overwrite if exists)
-    try:
-        with pd.ExcelWriter(file_path, mode='a', if_sheet_exists='replace', engine='openpyxl') as writer:
-            final_df.to_excel(writer, sheet_name=output_sheet_name, index=False)
-        print(f"Data written to sheet '{output_sheet_name}' in file '{file_path}'")
-    except Exception as e:
-        print(f"Error writing to Excel file: {e}")
+    if all_rows:
+        pd.DataFrame(all_rows).to_excel(
+            file_path,
+            sheet_name=output_sheet,
+            engine="openpyxl",
+            index=False,
+            mode="a",
+            if_sheet_exists="replace"
+        )
+        print(f"✅ Data saved to sheet '{output_sheet}'")
+    else:
+        print("❌ No data found.")
