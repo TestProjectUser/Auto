@@ -1,68 +1,22 @@
-import pandas as pd
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 
-# Load xls1 and xls2
-xls1 = pd.read_excel("xls1.xlsx")
-xls2 = pd.read_excel("xls2.xlsx")
+if os.path.exists(filename):
+    # Load existing workbook and sheet
+    wb = load_workbook(filename)
+    ws = wb.active
 
-# Combine fname + lname in xls1
-xls1["Name"] = xls1["Fname"].astype(str).str.strip() + " " + xls1["Lname"].astype(str).str.strip()
+    # Check if headers already exist (only if needed)
+    if ws.max_row == 0:
+        ws.append(columns)
+else:
+    # Create new workbook and sheet
+    wb = Workbook()
+    ws = wb.active
+    ws.append(columns)
 
-# Prepare result DataFrame for output layout
-output = pd.DataFrame({
-    "Fname": xls1["Fname"],
-    "Lname": xls1["Lname"],
-    "Address_xls1": xls1["Address"],
-    "SS_xls1": xls1["SS"],
-    "Name_xls2": xls2["Name"],
-    "Address_xls2": xls2["Address"],
-    "SS_xls2": xls2["SS"],
-})
+# Append the new row
+ws.append(row_values)
 
-# Determine status with reason
-def compare_row(row):
-    reasons = []
-    if row["Name_xls2"].strip().lower() != (str(row["Fname"]) + " " + str(row["Lname"])).strip().lower():
-        reasons.append("Name mismatch")
-    if str(row["Address_xls1"]).strip().lower() != str(row["Address_xls2"]).strip().lower():
-        reasons.append("Address mismatch")
-    if str(row["SS_xls1"]).strip() != str(row["SS_xls2"]).strip():
-        reasons.append("SS mismatch")
-    return "Pass" if not reasons else ", ".join(reasons)
+# Save the workbook
+wb.save(filename)
 
-output["Status"] = output.apply(compare_row, axis=1)
-
-# Save to Excel with formatting
-output_file = "comparison_result.xlsx"
-output.to_excel(output_file, index=False, sheet_name="Result")
-
-# Apply formatting with openpyxl
-wb = load_workbook(output_file)
-ws = wb["Result"]
-
-# Define styles
-border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                top=Side(style='thin'), bottom=Side(style='thin'))
-
-fill_xls1 = PatternFill(start_color="CCFFFF", end_color="CCFFFF", fill_type="solid")  # Light Blue
-fill_xls2 = PatternFill(start_color="FFCCFF", end_color="FFCCFF", fill_type="solid")  # Light Pink
-
-# Apply styles
-for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=8):
-    for i, cell in enumerate(row):
-        cell.border = border
-        if i < 4:
-            cell.fill = fill_xls1  # xls1 columns
-        elif 4 <= i < 7:
-            cell.fill = fill_xls2  # xls2 columns
-        # Status column: no fill
-
-# Header styling
-for cell in ws[1]:
-    cell.font = Font(bold=True)
-    cell.border = border
-    cell.alignment = Alignment(horizontal="center")
-
-# Save
-wb.save(output_file)
+print(f"Row appended to '{filename}' successfully.")
