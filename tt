@@ -1,22 +1,22 @@
+import pandas as pd
+import os
 
-if os.path.exists(filename):
-    # Load existing workbook and sheet
-    wb = load_workbook(filename)
-    ws = wb.active
+# Set folder path and testcase name
+folder_path = "path/to/your/folder"   # Change this
+suite_file = os.path.join(folder_path, "suite.xlsx")
+tc_name = "TC1"
+tc_file = os.path.join(folder_path, f"{tc_name}.xlsx")
 
-    # Check if headers already exist (only if needed)
-    if ws.max_row == 0:
-        ws.append(columns)
-else:
-    # Create new workbook and sheet
-    wb = Workbook()
-    ws = wb.active
-    ws.append(columns)
+# Read suite.xlsx and get account for TC1
+suite_df = pd.read_excel(suite_file)
+account_value = suite_df.loc[suite_df['TestCase'] == tc_name, 'account'].values[0]
 
-# Append the new row
-ws.append(row_values)
+# Load TC1.xlsx
+tc_df = pd.read_excel(tc_file)
 
-# Save the workbook
-wb.save(filename)
+# Update 'Expected' column where value is 'ACT'
+tc_df['Expected'] = tc_df['Expected'].apply(lambda x: account_value if str(x).strip().upper() == "ACT" else x)
 
-print(f"Row appended to '{filename}' successfully.")
+# Save the updated file (overwrite or create new)
+tc_df.to_excel(tc_file, index=False)
+print(f"Updated {tc_file} with account value '{account_value}' from suite.xlsx.")
