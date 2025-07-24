@@ -1,70 +1,49 @@
 import pandas as pd
 
-# === File paths ===
-source_file = "source.xlsx"          # Source is .xlsx
-dest_file = "destination.xls"        # Destination is .xls
-rules_file = "rules.txt"
-output_file = "output.xlsx"
+# File paths (update if needed)
+source_file = "source.xlsx"
+dest_file = "dest.xls"
+rule_file = "rule.xlsx"
+output_file = "validation_result.xlsx"
 
-# === Load source Excel (xlsx) ===
-src_df = pd.read_excel(source_file, sheet_name=0)
+# Read rule file
+rule_df = pd.read_excel(rule_file)
 
-# === Load destination Excel (xls using xlrd) ===
-dest_xls = pd.read_excel(dest_file, sheet_name=None, engine="xlrd")  # dict of sheets
+# Read source file (all sheets)
+source_sheets = pd.read_excel(source_file, sheet_name=None)
 
-# === Read validation rules from text file ===
-with open(rules_file, "r") as f:
-    lines = [line.strip() for line in f if line.strip()]
+# Read destination file (.xls format) using xlrd engine
+dest_sheets = pd.read_excel(dest_file, sheet_name=None, engine='xlrd')
 
-# === Store results ===
-results = []
+# Ensure rule column names are lowercase to match code
+rule_df.columns = [col.lower() for col in rule_df.columns]
 
-for rule in lines:
-    try:
-        sheet_col = rule.split(".")
-        if len(sheet_col) != 2:
-            continue  # Skip invalid line
+# Validation logic
+validation_results = []
 
-        sheet, col = sheet_col[0].strip(), sheet_col[1].strip()
+for _, rule in rule_df.iterrows():
+    dest_sheet = rule['sheetname']
+    dest_column = rule['columnname']
+    src_column = rule['mapper']
 
-        if "sht1" in sheet:
-            # Compare from source
-            if col not in src_df.columns:
-                continue
-            src_values = src_df[col]
-        elif "sht2" in sheet:
-            # Get the actual destination sheet name
-            dest_sheet_suffix = sheet.replace("sht2", "").strip()
-            dest_sheet_name = f"Sheet{dest_sheet_suffix or '1'}"
+    for src_sheet_name, src_df in source_sheets.items():
+        if src_column not in src_df.columns:
+            continue
+        for value in src_df[src_column].dropna().unique():
+            if dest_sheet in dest_sheets and dest_column in dest_sheets[dest_sheet].columns:
+                match_found = value in dest_sheets[dest_sheet][dest_column].values
+            else:
+                match_found = False
+            validation_results.append({
+                'SheetName': dest_sheet,
+                'ColumnName': dest_column,
+                'Value': value,
+                'MatchFound': match_found,
+                'SrcSheetName': src_sheet_name
+            })
 
-            if dest_sheet_name not in dest_xls:
-                print(f"Sheet '{dest_sheet_name}' not found in destination")
-                continue
+# Create and export result
+result_df = pd.DataFrame(validation_results)
+result_df.to_excel(output_file, index=False)
 
-            dest_df = dest_xls[dest_sheet_name]
-
-            if col not in dest_df.columns:
-                print(f"Column '{col}' not found in destination sheet '{dest_sheet_name}'")
-                continue
-
-            # Compare row-by-row between source and destination
-            for i in range(min(len(src_df), len(dest_df))):
-                src_val = src_df.at[i, col] if col in src_df.columns else None
-                dest_val = dest_df.at[i, col] if col in dest_df.columns else None
-                status = "Pass" if str(src_val).strip() == str(dest_val).strip() else "Fail"
-
-                results.append({
-                    "Row": i + 2,
-                    "Column": col,
-                    "Source Value": src_val,
-                    "Dest Value": dest_val,
-                    "Status": status
-                })
-
-    except Exception as e:
-        print(f"Error processing rule '{rule}': {e}")
-
-# === Save output as .xlsx ===
-output_df = pd.DataFrame(results)
-output_df.to_excel(output_file, index=False)
-print(f"Validation done. Output saved to {output_file}")
+print(f"Validation complete. Results saved to: {output_file}")
