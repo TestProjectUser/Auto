@@ -1,22 +1,57 @@
 import pandas as pd
-import os
 
-# Set folder path and testcase name
-folder_path = "path/to/your/folder"   # Change this
-suite_file = os.path.join(folder_path, "suite.xlsx")
-tc_name = "TC1"
-tc_file = os.path.join(folder_path, f"{tc_name}.xlsx")
+def compare_excel_files(
+    source_file, destination_file, output_file,
+    key_columns, columns_to_compare, source_sheet='sht1'
+):
+    # Load source and destination
+    df_source = pd.read_excel(source_file, sheet_name=source_sheet)
+    dest_sheets = pd.read_excel(destination_file, sheet_name=None, engine='xlrd')
 
-# Read suite.xlsx and get account for TC1
-suite_df = pd.read_excel(suite_file)
-account_value = suite_df.loc[suite_df['TestCase'] == tc_name, 'account'].values[0]
+    comparison_results = []
 
-# Load TC1.xlsx
-tc_df = pd.read_excel(tc_file)
+    for sheet_name, df_dest in dest_sheets.items():
+        for _, src_row in df_source.iterrows():
+            # Build match condition dynamically based on key columns
+            condition = pd.Series([True] * len(df_dest))
+            for key in key_columns:
+                condition &= (df_dest[key] == src_row[key])
 
-# Update 'Expected' column where value is 'ACT'
-tc_df['Expected'] = tc_df['Expected'].apply(lambda x: account_value if str(x).strip().upper() == "ACT" else x)
+            matching_rows = df_dest[condition]
 
-# Save the updated file (overwrite or create new)
-tc_df.to_excel(tc_file, index=False)
-print(f"Updated {tc_file} with account value '{account_value}' from suite.xlsx.")
+            if matching_rows.empty:
+                result = {
+                    'Sheet': sheet_name,
+                    'Status': 'FAIL',
+                    'Reason': f'No match for key(s): {key_columns}',
+                    **{f'Key {col}': src_row[col] for col in key_columns},
+                    **{f'Source {col}': src_row.get(col, None) for col in columns_to_compare},
+                    **{f'Destination {col}': None for col in columns_to_compare}
+                }
+                comparison_results.append(result)
+                continue
+
+            # Use first matched row
+            dst_row = matching_rows.iloc[0]
+            result = {
+                'Sheet': sheet_name,
+                'Status': 'PASS',
+                'Reason': '',
+                **{f'Key {col}': src_row[col] for col in key_columns}
+            }
+
+            for col in columns_to_compare:
+                src_val = src_row.get(col, None)
+                dst_val = dst_row.get(col, None)
+                result[f'Source {col}'] = src_val
+                result[f'Destination {col}'] = dst_val
+
+                if src_val != dst_val:
+                    result['Status'] = 'FAIL'
+                    result['Reason'] += f"{col} mismatch (Src: {src_val}, Dst: {dst_val}); "
+
+            comparison_results.append(result)
+
+    df_output = pd.DataFrame(comparison_results)
+    df_output.to_excel(output_file, index=False)
+    print(f"✅ Comparison complete. Output saved to {output_file}")
