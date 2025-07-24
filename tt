@@ -1,57 +1,64 @@
 import pandas as pd
 
-def compare_excel_files(
-    source_file, destination_file, output_file,
-    key_columns, columns_to_compare, source_sheet='sht1'
-):
-    # Load source and destination
-    df_source = pd.read_excel(source_file, sheet_name=source_sheet)
-    dest_sheets = pd.read_excel(destination_file, sheet_name=None, engine='xlrd')
+# === File paths ===
+source_file = "source.xlsx"
+dest_file = "destination.xlsx"
+rules_file = "rules.txt"
+output_file = "output.xlsx"
 
-    comparison_results = []
+# === Load Excel files ===
+src_df = pd.read_excel(source_file, sheet_name=0)
+dest_xls = pd.ExcelFile(dest_file)
 
-    for sheet_name, df_dest in dest_sheets.items():
-        for _, src_row in df_source.iterrows():
-            # Build match condition dynamically based on key columns
-            condition = pd.Series([True] * len(df_dest))
-            for key in key_columns:
-                condition &= (df_dest[key] == src_row[key])
+# === Read the validation rules ===
+with open(rules_file, "r") as f:
+    lines = [line.strip() for line in f if line.strip()]
 
-            matching_rows = df_dest[condition]
+# === Store results ===
+results = []
 
-            if matching_rows.empty:
-                result = {
-                    'Sheet': sheet_name,
-                    'Status': 'FAIL',
-                    'Reason': f'No match for key(s): {key_columns}',
-                    **{f'Key {col}': src_row[col] for col in key_columns},
-                    **{f'Source {col}': src_row.get(col, None) for col in columns_to_compare},
-                    **{f'Destination {col}': None for col in columns_to_compare}
-                }
-                comparison_results.append(result)
-                continue
+for rule in lines:
+    try:
+        sheet_col = rule.split(".")
+        if len(sheet_col) != 2:
+            continue  # Skip invalid lines
 
-            # Use first matched row
-            dst_row = matching_rows.iloc[0]
-            result = {
-                'Sheet': sheet_name,
-                'Status': 'PASS',
-                'Reason': '',
-                **{f'Key {col}': src_row[col] for col in key_columns}
-            }
+        sheet, col = sheet_col[0].strip(), sheet_col[1].strip()
 
-            for col in columns_to_compare:
-                src_val = src_row.get(col, None)
-                dst_val = dst_row.get(col, None)
-                result[f'Source {col}'] = src_val
-                result[f'Destination {col}'] = dst_val
+        if "sht1" in sheet:
+            src_values = src_df[col] if col in src_df.columns else None
+        else:
+            continue  # Skip for now if source doesn't have this
 
-                if src_val != dst_val:
-                    result['Status'] = 'FAIL'
-                    result['Reason'] += f"{col} mismatch (Src: {src_val}, Dst: {dst_val}); "
+        dest_sheet = sheet.replace("sht2", "")  # Get actual sheet name like "" or "2"
+        dest_sheet_name = f"Sheet{dest_sheet or 1}"  # fallback Sheet1
 
-            comparison_results.append(result)
+        if dest_sheet_name not in dest_xls.sheet_names:
+            print(f"Sheet '{dest_sheet_name}' not found.")
+            continue
 
-    df_output = pd.DataFrame(comparison_results)
-    df_output.to_excel(output_file, index=False)
-    print(f"✅ Comparison complete. Output saved to {output_file}")
+        dest_df = pd.read_excel(dest_file, sheet_name=dest_sheet_name)
+        if col not in dest_df.columns:
+            print(f"Column '{col}' not found in sheet '{dest_sheet_name}'")
+            continue
+
+        # Compare row-by-row
+        for i in range(min(len(src_df), len(dest_df))):
+            src_val = src_df.at[i, col] if col in src_df.columns else None
+            dest_val = dest_df.at[i, col] if col in dest_df.columns else None
+            status = "Pass" if str(src_val).strip() == str(dest_val).strip() else "Fail"
+            results.append({
+                "Row": i + 2,
+                "Column": col,
+                "Source Value": src_val,
+                "Dest Value": dest_val,
+                "Status": status
+            })
+
+    except Exception as e:
+        print(f"Error processing rule '{rule}': {e}")
+
+# === Save results to Excel ===
+output_df = pd.DataFrame(results)
+output_df.to_excel(output_file, index=False)
+print(f"Validation complete. Output saved to {output_file}")
