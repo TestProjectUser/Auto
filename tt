@@ -2,62 +2,53 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-# -----------------------------
-# XML FLATTENER (supports both styles)
-# -----------------------------
 def xml_to_dict(element, parent=""):
     d = {}
 
-    # Case 1: Field1/Field2 key-value structure
-    if element.find("Field1") is not None and element.find("Field2") is not None:
-        key = element.findtext("Field1")
-        val = element.findtext("Field2")
-        if key:
-            d[key] = val
-        return d
+    children = list(element)
 
-    # Case 2: Normal hierarchical XML
-    for child in element:
+    # try to detect "label/value" pair in children
+    for i, child in enumerate(children):
+        key_text = (child.text or "").strip()
+        if key_text and key_text.isalpha():  # looks like a label (all letters)
+            # check if there's a next sibling -> treat as value
+            if i + 1 < len(children):
+                value_text = (children[i+1].text or "").strip()
+                if value_text:
+                    d[key_text] = value_text
+
+    # fallback: normal flattening for all children
+    for child in children:
         path = f"{parent}.{child.tag}" if parent else child.tag
-        if len(child) > 0:  # has nested children
+        if len(child) > 0:
             d.update(xml_to_dict(child, path))
         else:
-            d[path] = child.text
+            d[path] = (child.text or "").strip()
+
     return d
 
 
-# -----------------------------
-# LOAD XML DATA
-# -----------------------------
 def load_xml(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
     rows = []
-
-    # If repeating blocks like <Identity>, flatten each
     for child in root:
         rows.append(xml_to_dict(child))
-    if not rows:  # fallback single root
+    if not rows:  # single root case
         rows = [xml_to_dict(root)]
     return pd.DataFrame(rows)
 
 
-# -----------------------------
-# COMPARE FUNCTION
-# -----------------------------
 def compare_xml_xls(xml_file, xls_file, mapper_file, report_file):
-    # Load files
     xml_df = load_xml(xml_file)
     xls_df = pd.read_excel(xls_file)
     mapper_df = pd.read_excel(mapper_file)
 
     report = []
-
     for _, row in mapper_df.iterrows():
         xml_field = row["xml_field"]
         xls_field = row["xls_field"]
 
-        # Take first row (extendable if multiple rows)
         xml_val = xml_df.get(xml_field, pd.Series([None])).iloc[0]
         xls_val = xls_df.get(xls_field, pd.Series([None])).iloc[0]
 
@@ -73,19 +64,6 @@ def compare_xml_xls(xml_file, xls_file, mapper_file, report_file):
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
-    # Save report
     report_df = pd.DataFrame(report)
     report_df.to_excel(report_file, index=False)
     print(f"✅ Report generated: {report_file}")
-
-
-# -----------------------------
-# USAGE
-# -----------------------------
-if __name__ == "__main__":
-    compare_xml_xls(
-        xml_file="input.xml",       # your XML file
-        xls_file="data.xlsx",       # Excel with data
-        mapper_file="mapper.xlsx",  # Mapper with xml_field, xls_field
-        report_file="report.xlsx"   # Output report
-    )
