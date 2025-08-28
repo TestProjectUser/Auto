@@ -1,10 +1,60 @@
-# Create mapping dictionary from mapper sheet
+import json
+import pandas as pd
+from pandas import json_normalize
+
+# ---------- Load JSON ----------
+with open("input.json", "r") as f:
+    json_data = json.load(f)
+
+# Flatten JSON
+df_json = json_normalize(json_data, sep=".")
+
+# ---------- Load Excel ----------
+xls = pd.ExcelFile("input.xlsx")
+df_xls = pd.read_excel(xls, sheet_name="data")
+df_map = pd.read_excel(xls, sheet_name="mapper")
+
+# Create mapping dictionary {json_field: xls_field}
 mapping = dict(zip(df_map["json_field"], df_map["xls_field"]))
 
-# Rename only columns that exist in JSON
+# Rename JSON columns to Excel names (only if field exists)
 df_json_renamed = df_json.rename(columns={k: v for k, v in mapping.items() if k in df_json.columns})
 
-# Final list of columns = only those that exist after rename
-valid_cols = [col for col in mapping.values() if col in df_json_renamed.columns]
+# Key column (assume first mapping row is key)
+key_json = list(mapping.keys())[0]
+key_xls = mapping[key_json]
 
-df_json_final = df_json_renamed[valid_cols]
+results = []
+
+# All unique keys from both JSON + XLS
+all_keys = set(df_json_renamed[key_xls]).union(set(df_xls[key_xls]))
+
+# Iterate over each key
+for k in all_keys:
+    json_row = df_json_renamed[df_json_renamed[key_xls] == k].to_dict(orient="records")
+    xls_row = df_xls[df_xls[key_xls] == k].to_dict(orient="records")
+
+    for json_col, xls_col in mapping.items():
+        if json_col not in df_json.columns:
+            continue  # skip unmapped JSON fields
+
+        json_val = json_row[0][xls_col] if json_row else None
+        xls_val = xls_row[0][xls_col] if xls_row else None
+
+        # Only consider Match / Mismatch
+        if json_val is not None and xls_val is not None:
+            status = "Match" if json_val == xls_val else "Mismatch"
+            results.append({
+                "Test_Name": k,
+                "JSON_Column": json_col,
+                "JSON_Value": json_val,
+                "XLS_Column": xls_col,
+                "XLS_Value": xls_val,
+                "Status": status
+            })
+
+# ---------- Save Report ----------
+df_report = pd.DataFrame(results)
+df_report.to_excel("mapped_comparison_report.xlsx", index=False)
+
+print("✅ Report saved to mapped_comparison_report.xlsx with only Match/Mismatch rows")
