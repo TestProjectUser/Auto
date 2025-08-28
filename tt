@@ -1,60 +1,91 @@
-import json
 import pandas as pd
-from pandas import json_normalize
+import xml.etree.ElementTree as ET
+from datetime import datetime
 
-# ---------- Load JSON ----------
-with open("input.json", "r") as f:
-    json_data = json.load(f)
+# -----------------------------
+# XML FLATTENER (supports both styles)
+# -----------------------------
+def xml_to_dict(element, parent=""):
+    d = {}
 
-# Flatten JSON
-df_json = json_normalize(json_data, sep=".")
+    # Case 1: Field1/Field2 key-value structure
+    if element.find("Field1") is not None and element.find("Field2") is not None:
+        key = element.findtext("Field1")
+        val = element.findtext("Field2")
+        if key:
+            d[key] = val
+        return d
 
-# ---------- Load Excel ----------
-xls = pd.ExcelFile("input.xlsx")
-df_xls = pd.read_excel(xls, sheet_name="data")
-df_map = pd.read_excel(xls, sheet_name="mapper")
+    # Case 2: Normal hierarchical XML
+    for child in element:
+        path = f"{parent}.{child.tag}" if parent else child.tag
+        if len(child) > 0:  # has nested children
+            d.update(xml_to_dict(child, path))
+        else:
+            d[path] = child.text
+    return d
 
-# Create mapping dictionary {json_field: xls_field}
-mapping = dict(zip(df_map["json_field"], df_map["xls_field"]))
 
-# Rename JSON columns to Excel names (only if field exists)
-df_json_renamed = df_json.rename(columns={k: v for k, v in mapping.items() if k in df_json.columns})
+# -----------------------------
+# LOAD XML DATA
+# -----------------------------
+def load_xml(xml_file):
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+    rows = []
 
-# Key column (assume first mapping row is key)
-key_json = list(mapping.keys())[0]
-key_xls = mapping[key_json]
+    # If repeating blocks like <Identity>, flatten each
+    for child in root:
+        rows.append(xml_to_dict(child))
+    if not rows:  # fallback single root
+        rows = [xml_to_dict(root)]
+    return pd.DataFrame(rows)
 
-results = []
 
-# All unique keys from both JSON + XLS
-all_keys = set(df_json_renamed[key_xls]).union(set(df_xls[key_xls]))
+# -----------------------------
+# COMPARE FUNCTION
+# -----------------------------
+def compare_xml_xls(xml_file, xls_file, mapper_file, report_file):
+    # Load files
+    xml_df = load_xml(xml_file)
+    xls_df = pd.read_excel(xls_file)
+    mapper_df = pd.read_excel(mapper_file)
 
-# Iterate over each key
-for k in all_keys:
-    json_row = df_json_renamed[df_json_renamed[key_xls] == k].to_dict(orient="records")
-    xls_row = df_xls[df_xls[key_xls] == k].to_dict(orient="records")
+    report = []
 
-    for json_col, xls_col in mapping.items():
-        if json_col not in df_json.columns:
-            continue  # skip unmapped JSON fields
+    for _, row in mapper_df.iterrows():
+        xml_field = row["xml_field"]
+        xls_field = row["xls_field"]
 
-        json_val = json_row[0][xls_col] if json_row else None
-        xls_val = xls_row[0][xls_col] if xls_row else None
+        # Take first row (extendable if multiple rows)
+        xml_val = xml_df.get(xml_field, pd.Series([None])).iloc[0]
+        xls_val = xls_df.get(xls_field, pd.Series([None])).iloc[0]
 
-        # Only consider Match / Mismatch
-        if json_val is not None and xls_val is not None:
-            status = "Match" if json_val == xls_val else "Mismatch"
-            results.append({
-                "Test_Name": k,
-                "JSON_Column": json_col,
-                "JSON_Value": json_val,
-                "XLS_Column": xls_col,
-                "XLS_Value": xls_val,
-                "Status": status
-            })
+        status = "MATCH" if str(xml_val).strip() == str(xls_val).strip() else "MISMATCH"
 
-# ---------- Save Report ----------
-df_report = pd.DataFrame(results)
-df_report.to_excel("mapped_comparison_report.xlsx", index=False)
+        report.append({
+            "TestName": "XML_vs_XLS",
+            "XML Field": xml_field,
+            "XML Value": xml_val,
+            "XLS Field": xls_field,
+            "XLS Value": xls_val,
+            "Status": status,
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
-print("✅ Report saved to mapped_comparison_report.xlsx with only Match/Mismatch rows")
+    # Save report
+    report_df = pd.DataFrame(report)
+    report_df.to_excel(report_file, index=False)
+    print(f"✅ Report generated: {report_file}")
+
+
+# -----------------------------
+# USAGE
+# -----------------------------
+if __name__ == "__main__":
+    compare_xml_xls(
+        xml_file="input.xml",       # your XML file
+        xls_file="data.xlsx",       # Excel with data
+        mapper_file="mapper.xlsx",  # Mapper with xml_field, xls_field
+        report_file="report.xlsx"   # Output report
+    )
