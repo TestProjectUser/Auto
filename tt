@@ -1,2 +1,75 @@
-green_fill = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')  # Light green
-red_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')    # Light red
+import json
+import pandas as pd
+from pandas import json_normalize
+
+# ---------- Load JSON ----------
+with open("input.json", "r") as f:
+    json_data = json.load(f)
+
+# Flatten JSON
+df_json = json_normalize(json_data, sep=".")
+
+# ---------- Load Excel ----------
+xls = pd.ExcelFile("input.xlsx")
+df_xls = pd.read_excel(xls, sheet_name="data")
+df_map = pd.read_excel(xls, sheet_name="mapper")
+
+# Create mapping dictionary {json_field: xls_field}
+mapping = dict(zip(df_map["json_field"], df_map["xls_field"]))
+
+# Rename JSON columns to match Excel
+df_json_renamed = df_json.rename(columns=mapping)
+
+# Only keep mapped columns
+df_json_final = df_json_renamed[list(mapping.values())]
+
+# ---------- Identify Key Column ----------
+# Assume the first mapping is the "key" (can change if you want)
+key_col = list(mapping.values())[0]
+
+# ---------- Build Detailed Comparison ----------
+results = []
+
+# Outer join on key
+all_keys = set(df_json_final[key_col]).union(set(df_xls[key_col]))
+
+for k in all_keys:
+    json_row = df_json_final[df_json_final[key_col] == k].to_dict(orient="records")
+    xls_row = df_xls[df_xls[key_col] == k].to_dict(orient="records")
+
+    if not json_row:  # Only in Excel
+        for col in df_xls.columns:
+            results.append({
+                "Key": k,
+                "Column": col,
+                "JSON_Value": None,
+                "XLS_Value": xls_row[0][col],
+                "Status": "Only in XLS"
+            })
+    elif not xls_row:  # Only in JSON
+        for col in df_json_final.columns:
+            results.append({
+                "Key": k,
+                "Column": col,
+                "JSON_Value": json_row[0][col],
+                "XLS_Value": None,
+                "Status": "Only in JSON"
+            })
+    else:  # Present in both → compare column by column
+        for col in df_json_final.columns:
+            json_val = json_row[0].get(col)
+            xls_val = xls_row[0].get(col)
+            status = "Match" if json_val == xls_val else "Mismatch"
+            results.append({
+                "Key": k,
+                "Column": col,
+                "JSON_Value": json_val,
+                "XLS_Value": xls_val,
+                "Status": status
+            })
+
+# ---------- Save Report ----------
+df_report = pd.DataFrame(results)
+df_report.to_excel("detailed_comparison_report.xlsx", index=False)
+
+print("✅ Detailed comparison report saved to detailed_comparison_report.xlsx")
