@@ -4,26 +4,32 @@ from datetime import datetime
 
 def xml_to_dict(element, parent=""):
     d = {}
-
     children = list(element)
 
-    # try to detect "label/value" pair in children
-    for i, child in enumerate(children):
-        key_text = (child.text or "").strip()
-        if key_text and key_text.isalpha():  # looks like a label (all letters)
-            # check if there's a next sibling -> treat as value
+    # Detect label/value pairs dynamically
+    i = 0
+    while i < len(children):
+        key_text = (children[i].text or "").strip()
+        # If current child looks like a "label" (alphabetic, not empty)
+        if key_text and key_text.isalpha():
+            # take next sibling as value if exists
             if i + 1 < len(children):
                 value_text = (children[i+1].text or "").strip()
                 if value_text:
                     d[key_text] = value_text
+            i += 2  # skip next because it's already used as value
+            continue
+        i += 1
 
-    # fallback: normal flattening for all children
+    # Normal flattening for all children (Case B)
     for child in children:
         path = f"{parent}.{child.tag}" if parent else child.tag
         if len(child) > 0:
             d.update(xml_to_dict(child, path))
         else:
-            d[path] = (child.text or "").strip()
+            val = (child.text or "").strip()
+            if val:  # only store non-empty
+                d[child.tag] = val
 
     return d
 
