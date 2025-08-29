@@ -1,64 +1,63 @@
 import pandas as pd
 
-def compare_xls(src_file, dest_file, output_file):
-    # Read source (assume first sheet)
+def compare_with_mapper(src_file, dest_file, mapper_file, output_file):
+    # Read source (first sheet)
     src_df = pd.read_excel(src_file, sheet_name=0)
 
-    # Read all destination sheets into a dict
+    # Read destination (all sheets)
     dest_xls = pd.ExcelFile(dest_file)
     dest_dfs = {sheet: pd.read_excel(dest_file, sheet_name=sheet) for sheet in dest_xls.sheet_names}
 
+    # Read mapper (should have columns: SourceCol, DestSheet, DestCol, Key?)
+    mapper_df = pd.read_excel(mapper_file)
+
     results = []
 
-    # Loop through each column in source
-    for col in src_df.columns:
-        for sheet, dest_df in dest_dfs.items():
-            if col in dest_df.columns:
-                # We found a common column
-                for idx, src_val in enumerate(src_df[col]):
-                    # Check if src_val exists in destination column
-                    match_rows = dest_df[dest_df[col] == src_val]
+    for _, map_row in mapper_df.iterrows():
+        src_col = map_row["SourceCol"]
+        dest_sheet = map_row["DestSheet"]
+        dest_col = map_row["DestCol"]
+        is_key = map_row.get("Key", False)  # optional key flag
 
-                    if not match_rows.empty:
-                        for _, dest_row in match_rows.iterrows():
-                            # Compare entire row
-                            for compare_col in src_df.columns:
-                                src_value = src_df.iloc[idx][compare_col] if compare_col in src_df.columns else "N/A"
-                                dest_value = dest_row[compare_col] if compare_col in dest_df.columns else "N/A"
-                                status = "PASS" if src_value == dest_value else "FAIL"
+        if dest_sheet not in dest_dfs:
+            continue
+        dest_df = dest_dfs[dest_sheet]
 
-                                results.append({
-                                    "Key Column": col,
-                                    "Key Value": src_val,
-                                    "Row": idx + 1,
-                                    "Column": compare_col,
-                                    "Source Value": src_value,
-                                    "Destination Value": dest_value,
-                                    "Status": status,
-                                    "Sheet": sheet
-                                })
-                    else:
-                        results.append({
-                            "Key Column": col,
-                            "Key Value": src_val,
-                            "Row": idx + 1,
-                            "Column": col,
-                            "Source Value": src_val,
-                            "Destination Value": "Not Found",
-                            "Status": "FAIL",
-                            "Sheet": sheet
-                        })
+        for idx, src_val in enumerate(src_df[src_col]):
+            # try to match on key column
+            if is_key:
+                match_rows = dest_df[dest_df[dest_col] == src_val]
+            else:
+                match_rows = dest_df
+
+            if not match_rows.empty:
+                for _, dest_row in match_rows.iterrows():
+                    src_value = src_val
+                    dest_value = dest_row[dest_col] if dest_col in dest_df.columns else "N/A"
+                    status = "PASS" if src_value == dest_value else "FAIL"
+
+                    results.append({
+                        "Source Column": src_col,
+                        "Destination Column": dest_col,
+                        "Sheet": dest_sheet,
+                        "Row": idx + 1,
+                        "Source Value": src_value,
+                        "Destination Value": dest_value,
+                        "Status": status
+                    })
+            else:
+                results.append({
+                    "Source Column": src_col,
+                    "Destination Column": dest_col,
+                    "Sheet": dest_sheet,
+                    "Row": idx + 1,
+                    "Source Value": src_val,
+                    "Destination Value": "Not Found",
+                    "Status": "FAIL"
+                })
 
     # Save results
     result_df = pd.DataFrame(results)
     result_df.to_excel(output_file, index=False)
 
     print(f"Comparison completed. Results saved to {output_file}")
-
-
-# Example usage
-src_file = "source.xls"
-dest_file = "destination.xls"
-output_file = "comparison_result.xlsx"
-
-compare_xls(src_file, dest_file, output_file)
