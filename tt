@@ -1,75 +1,64 @@
 import pandas as pd
-import xml.etree.ElementTree as ET
-from datetime import datetime
 
-def xml_to_dict(element, parent=""):
-    d = {}
-    children = list(element)
+def compare_xls(src_file, dest_file, output_file):
+    # Read source (assume first sheet)
+    src_df = pd.read_excel(src_file, sheet_name=0)
 
-    # Detect label/value pairs dynamically
-    i = 0
-    while i < len(children):
-        key_text = (children[i].text or "").strip()
-        # If current child looks like a "label" (alphabetic, not empty)
-        if key_text and key_text.isalpha():
-            # take next sibling as value if exists
-            if i + 1 < len(children):
-                value_text = (children[i+1].text or "").strip()
-                if value_text:
-                    d[key_text] = value_text
-            i += 2  # skip next because it's already used as value
-            continue
-        i += 1
+    # Read all destination sheets into a dict
+    dest_xls = pd.ExcelFile(dest_file)
+    dest_dfs = {sheet: pd.read_excel(dest_file, sheet_name=sheet) for sheet in dest_xls.sheet_names}
 
-    # Normal flattening for all children (Case B)
-    for child in children:
-        path = f"{parent}.{child.tag}" if parent else child.tag
-        if len(child) > 0:
-            d.update(xml_to_dict(child, path))
-        else:
-            val = (child.text or "").strip()
-            if val:  # only store non-empty
-                d[child.tag] = val
+    results = []
 
-    return d
+    # Loop through each column in source
+    for col in src_df.columns:
+        for sheet, dest_df in dest_dfs.items():
+            if col in dest_df.columns:
+                # We found a common column
+                for idx, src_val in enumerate(src_df[col]):
+                    # Check if src_val exists in destination column
+                    match_rows = dest_df[dest_df[col] == src_val]
+
+                    if not match_rows.empty:
+                        for _, dest_row in match_rows.iterrows():
+                            # Compare entire row
+                            for compare_col in src_df.columns:
+                                src_value = src_df.iloc[idx][compare_col] if compare_col in src_df.columns else "N/A"
+                                dest_value = dest_row[compare_col] if compare_col in dest_df.columns else "N/A"
+                                status = "PASS" if src_value == dest_value else "FAIL"
+
+                                results.append({
+                                    "Key Column": col,
+                                    "Key Value": src_val,
+                                    "Row": idx + 1,
+                                    "Column": compare_col,
+                                    "Source Value": src_value,
+                                    "Destination Value": dest_value,
+                                    "Status": status,
+                                    "Sheet": sheet
+                                })
+                    else:
+                        results.append({
+                            "Key Column": col,
+                            "Key Value": src_val,
+                            "Row": idx + 1,
+                            "Column": col,
+                            "Source Value": src_val,
+                            "Destination Value": "Not Found",
+                            "Status": "FAIL",
+                            "Sheet": sheet
+                        })
+
+    # Save results
+    result_df = pd.DataFrame(results)
+    result_df.to_excel(output_file, index=False)
+
+    print(f"Comparison completed. Results saved to {output_file}")
 
 
-def load_xml(xml_file):
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
-    rows = []
-    for child in root:
-        rows.append(xml_to_dict(child))
-    if not rows:  # single root case
-        rows = [xml_to_dict(root)]
-    return pd.DataFrame(rows)
+# Example usage
+src_file = "source.xls"
+dest_file = "destination.xls"
+output_file = "comparison_result.xlsx"
 
-
-def compare_xml_xls(xml_file, xls_file, mapper_file, report_file):
-    xml_df = load_xml(xml_file)
-    xls_df = pd.read_excel(xls_file)
-    mapper_df = pd.read_excel(mapper_file)
-
-    report = []
-    for _, row in mapper_df.iterrows():
-        xml_field = row["xml_field"]
-        xls_field = row["xls_field"]
-
-        xml_val = xml_df.get(xml_field, pd.Series([None])).iloc[0]
-        xls_val = xls_df.get(xls_field, pd.Series([None])).iloc[0]
-
-        status = "MATCH" if str(xml_val).strip() == str(xls_val).strip() else "MISMATCH"
-
-        report.append({
-            "TestName": "XML_vs_XLS",
-            "XML Field": xml_field,
-            "XML Value": xml_val,
-            "XLS Field": xls_field,
-            "XLS Value": xls_val,
-            "Status": status,
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-
-    report_df = pd.DataFrame(report)
-    report_df.to_excel(report_file, index=False)
-    print(f"✅ Report generated: {report_file}")
+compare_xls(src_file, dest_file, output_file)
