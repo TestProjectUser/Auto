@@ -1,40 +1,40 @@
 import pandas as pd
 
-# Load rules
-rules_df = pd.read_excel("rules.xlsx", sheet_name="kyc")
-rules_map = dict(zip(rules_df["Question"], rules_df["SrcColumn"]))
+# Step 1: Load source data
+source_file = "data.xlsx"
+source_sheet = "apply"
+df_source = pd.read_excel(source_file, sheet_name=source_sheet)
 
-# Load source data
-src_df = pd.read_excel("src.xlsx")
+# Step 2: Read testcase name and column values
+# (assuming 'Testcase' is a column in the sheet)
+testcase_name = "TC_001"   # example testcase name
+row_source = df_source[df_source["Testcase"] == testcase_name]
 
-# Load destination data (.xls may need xlrd engine)
-dest_df = pd.read_excel("dest.xls")
+# Step 3: Load target xlsm file
+target_file = "other_file.xlsm"
+df_target = pd.read_excel(target_file, None)  # Load all sheets into dict
 
+# Example: choose specific sheet (you can loop if needed)
+df_target_sheet = df_target["Sheet1"]
+
+# Mapping between column names (example, can read from a config file)
+column_mapping = {
+    "SourceCol1": "TargetColA",
+    "SourceCol2": "TargetColB"
+}
+
+# Collect comparison results
 results = []
 
-for cust_id in src_df["CustID"].unique():
-    src_row = src_df[src_df["CustID"] == cust_id].iloc[0]
+for src_col, tgt_col in column_mapping.items():
+    src_val = row_source[src_col].values[0]
+    tgt_val = df_target_sheet[tgt_col].iloc[0]  # Adjust logic to find row
+    
+    status = "PASS" if src_val == tgt_val else "FAIL"
+    results.append([src_col, src_val, tgt_val, status])
 
-    dest_rows = dest_df[dest_df["CustID"] == cust_id]
+# Step 4: Write final output
+output_df = pd.DataFrame(results, columns=["Column", "Source Value", "Target Value", "Status"])
+output_df.to_excel("final_output.xlsx", index=False)
 
-    for _, dest_row in dest_rows.iterrows():
-        question = dest_row["Question"]
-
-        if question in rules_map:  # check if this question is to be validated
-            src_col = rules_map[question]
-            src_value = str(src_row[src_col]).strip()
-            dest_value = str(dest_row["Answer"]).strip() if pd.notna(dest_row["Answer"]) else str(dest_row["Answer1"]).strip()
-
-            status = "PASS" if src_value == dest_value else "FAIL"
-
-            results.append({
-                "CustID": cust_id,
-                "Question": question,
-                "SrcValue": src_value,
-                "DestValue": dest_value,
-                "Status": status
-            })
-
-# Convert to DataFrame and save output
-results_df = pd.DataFrame(results)
-results_df.to_excel("validation_output.xlsx", index=False)
+print("Comparison done. Results saved in final_output.xlsx")
