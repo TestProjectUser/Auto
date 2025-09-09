@@ -1,40 +1,16 @@
-import pandas as pd
+import win32com.client as win32
 
-# Step 1: Load source data
-source_file = "data.xlsx"
-source_sheet = "apply"
-df_source = pd.read_excel(source_file, sheet_name=source_sheet)
+excel = win32.GetObject(None, "Excel.Application")
+wb = excel.Workbooks("your_file.xlsm")
+ws = wb.Sheets("Sheet1")
 
-# Step 2: Read testcase name and column values
-# (assuming 'Testcase' is a column in the sheet)
-testcase_name = "TC_001"   # example testcase name
-row_source = df_source[df_source["Testcase"] == testcase_name]
+last_row = ws.Cells(ws.Rows.Count, "B").End(-4162).Row
 
-# Step 3: Load target xlsm file
-target_file = "other_file.xlsm"
-df_target = pd.read_excel(target_file, None)  # Load all sheets into dict
+# Put formula in J5 and fill down
+formula = '=IF(AND(LOWER(B5)=LOWER(F5), LOWER(C5)=LOWER(G5), LOWER(D5)=LOWER(H5), LOWER(E5)=LOWER(I5)), "PASS", "FAIL")'
+ws.Range(f"J5:J{last_row}").Formula = formula
 
-# Example: choose specific sheet (you can loop if needed)
-df_target_sheet = df_target["Sheet1"]
+# Add header
+ws.Cells(4, 10).Value = "Status"
 
-# Mapping between column names (example, can read from a config file)
-column_mapping = {
-    "SourceCol1": "TargetColA",
-    "SourceCol2": "TargetColB"
-}
-
-# Collect comparison results
-results = []
-
-for src_col, tgt_col in column_mapping.items():
-    src_val = row_source[src_col].values[0]
-    tgt_val = df_target_sheet[tgt_col].iloc[0]  # Adjust logic to find row
-    
-    status = "PASS" if src_val == tgt_val else "FAIL"
-    results.append([src_col, src_val, tgt_val, status])
-
-# Step 4: Write final output
-output_df = pd.DataFrame(results, columns=["Column", "Source Value", "Target Value", "Status"])
-output_df.to_excel("final_output.xlsx", index=False)
-
-print("Comparison done. Results saved in final_output.xlsx")
+print("✅ Formula-based comparison done (Column J).")
