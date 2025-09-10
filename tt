@@ -1,9 +1,11 @@
-# Assume wb and ws are already defined (open workbook)
+import win32com.client as win32
 
-# Map header names to column numbers
-header_map = {ws.cell(row=1, column=col).value: col for col in range(1, ws.max_column + 1)}
+# --- Connect to Excel ---
+excel = win32.Dispatch("Excel.Application")
+wb = excel.Workbooks("your_file.xlsx")  # already opened workbook
+ws = wb.Sheets("Sheet1")                # adjust sheet name
 
-# Define header name pairs to compare
+# --- Define header name pairs to compare ---
 pairs = [
     ("First Name", "First Name Check"),
     ("Last Name", "Last Name Check"),
@@ -11,21 +13,28 @@ pairs = [
     ("Email", "Email Check")
 ]
 
-# Add Status column dynamically
-status_col = ws.max_column + 1
-ws.cell(row=1, column=status_col, value="Status")
+# --- Find last column for Status ---
+last_col = ws.UsedRange.Columns.Count + 1
+ws.Cells(1, last_col).Value = "Status"
 
-# Compare row by row
-for row in range(2, ws.max_row + 1):
+# --- Get headers positions once ---
+header_pos = {}
+for col in range(1, ws.UsedRange.Columns.Count + 1):
+    header = str(ws.Cells(1, col).Value or "").strip()
+    header_pos[header] = col
+
+# --- Compare row by row ---
+for row in range(2, ws.UsedRange.Rows.Count + 1):
     mismatches = []
     for h1, h2 in pairs:
-        v1 = str(ws.cell(row=row, column=header_map[h1]).value or "").strip().lower()
-        v2 = str(ws.cell(row=row, column=header_map[h2]).value or "").strip().lower()
+        col1 = header_pos.get(h1)
+        col2 = header_pos.get(h2)
+        v1 = str(ws.Cells(row, col1).Value or "").strip().lower()
+        v2 = str(ws.Cells(row, col2).Value or "").strip().lower()
         if v1 != v2:
             mismatches.append(f"{h1}≠{h2}")
-    
-    # Write result
-    ws.cell(row=row, column=status_col, value="Pass" if not mismatches else "Fail - " + ", ".join(mismatches))
 
-# Save workbook
-wb.save("your_file_checked.xlsx")
+    ws.Cells(row, last_col).Value = "Pass" if not mismatches else "Fail - " + ", ".join(mismatches)
+
+# --- Optional: Save workbook ---
+wb.Save()  # Saves changes to the already opened workbook
