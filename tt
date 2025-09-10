@@ -1,31 +1,31 @@
-import os
-import shutil
-from datetime import datetime
-import win32com.client as win32
+# Assume wb and ws are already defined (open workbook)
 
-# --- CONFIG ---
-template_file = r"C:\path\to\template.xlsx"
-output_folder = r"C:\path\to\output"
-Col = ["acb", "fdt", "ghy"]   # your values to write
+# Map header names to column numbers
+header_map = {ws.cell(row=1, column=col).value: col for col in range(1, ws.max_column + 1)}
 
-# --- STEP 1: Copy template with timestamp ---
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-output_file = os.path.join(output_folder, f"template_copy_{timestamp}.xlsx")
-shutil.copy(template_file, output_file)
+# Define header name pairs to compare
+pairs = [
+    ("First Name", "First Name Check"),
+    ("Last Name", "Last Name Check"),
+    ("DOB", "DOB Check"),
+    ("Email", "Email Check")
+]
 
-# --- STEP 2: Open with existing Excel object ---
-excel = win32.gencache.EnsureDispatch("Excel.Application")
-excel.Visible = True   # keep visible for debugging
+# Add Status column dynamically
+status_col = ws.max_column + 1
+ws.cell(row=1, column=status_col, value="Status")
 
-wb = excel.Workbooks.Open(output_file)
-ws = wb.Sheets(1)  # first sheet
+# Compare row by row
+for row in range(2, ws.max_row + 1):
+    mismatches = []
+    for h1, h2 in pairs:
+        v1 = str(ws.cell(row=row, column=header_map[h1]).value or "").strip().lower()
+        v2 = str(ws.cell(row=row, column=header_map[h2]).value or "").strip().lower()
+        if v1 != v2:
+            mismatches.append(f"{h1}≠{h2}")
+    
+    # Write result
+    ws.cell(row=row, column=status_col, value="Pass" if not mismatches else "Fail - " + ", ".join(mismatches))
 
-# --- STEP 3: Write values starting from row 2 ---
-row = 2
-col_start = 1   # write starting from column A
-for i, val in enumerate(Col, start=col_start):
-    ws.Cells(row, i).Value = val
-
-# --- Save ---
-wb.Save()
-print(f"File saved: {output_file}")
+# Save workbook
+wb.save("your_file_checked.xlsx")
