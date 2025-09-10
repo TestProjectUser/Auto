@@ -1,16 +1,31 @@
+import os
+import shutil
+from datetime import datetime
 import win32com.client as win32
 
-excel = win32.GetObject(None, "Excel.Application")
-wb = excel.Workbooks("your_file.xlsm")
-ws = wb.Sheets("Sheet1")
+# --- CONFIG ---
+template_file = r"C:\path\to\template.xlsx"
+output_folder = r"C:\path\to\output"
+Col = ["acb", "fdt", "ghy"]   # your values to write
 
-last_row = ws.Cells(ws.Rows.Count, "B").End(-4162).Row
+# --- STEP 1: Copy template with timestamp ---
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_file = os.path.join(output_folder, f"template_copy_{timestamp}.xlsx")
+shutil.copy(template_file, output_file)
 
-# Put formula in J5 and fill down
-formula = '=IF(AND(LOWER(B5)=LOWER(F5), LOWER(C5)=LOWER(G5), LOWER(D5)=LOWER(H5), LOWER(E5)=LOWER(I5)), "PASS", "FAIL")'
-ws.Range(f"J5:J{last_row}").Formula = formula
+# --- STEP 2: Open with existing Excel object ---
+excel = win32.gencache.EnsureDispatch("Excel.Application")
+excel.Visible = True   # keep visible for debugging
 
-# Add header
-ws.Cells(4, 10).Value = "Status"
+wb = excel.Workbooks.Open(output_file)
+ws = wb.Sheets(1)  # first sheet
 
-print("✅ Formula-based comparison done (Column J).")
+# --- STEP 3: Write values starting from row 2 ---
+row = 2
+col_start = 1   # write starting from column A
+for i, val in enumerate(Col, start=col_start):
+    ws.Cells(row, i).Value = val
+
+# --- Save ---
+wb.Save()
+print(f"File saved: {output_file}")
