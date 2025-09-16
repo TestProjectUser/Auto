@@ -1,40 +1,22 @@
-import win32com.client as win32
+import pandas as pd
 
-# --- Connect to Excel ---
-excel = win32.Dispatch("Excel.Application")
-wb = excel.Workbooks("your_file.xlsx")  # already opened workbook
-ws = wb.Sheets("Sheet1")                # adjust sheet name
+# Sample DataFrame
+df = pd.DataFrame({
+    "Name": ["A", "B", "C", "D"],
+    "Status": ["pass", "fail", "", "pass"]
+})
 
-# --- Define header name pairs to compare ---
-pairs = [
-    ("First Name", "First Name Check"),
-    ("Last Name", "Last Name Check"),
-    ("DOB", "DOB Check"),
-    ("Email", "Email Check")
-]
+# Define styling function
+def highlight_status(val):
+    if pd.isna(val) or str(val).strip() == "":
+        return ""  # no style for blanks
+    if str(val).strip().lower() == "pass":
+        return "color: green;"  # green font
+    else:
+        return "color: red;"    # red font
 
-# --- Find last column for Status ---
-last_col = ws.UsedRange.Columns.Count + 1
-ws.Cells(1, last_col).Value = "Status"
+# Apply style only on Status column
+styled_df = df.style.applymap(highlight_status, subset=["Status"])
 
-# --- Get headers positions once ---
-header_pos = {}
-for col in range(1, ws.UsedRange.Columns.Count + 1):
-    header = str(ws.Cells(1, col).Value or "").strip()
-    header_pos[header] = col
-
-# --- Compare row by row ---
-for row in range(2, ws.UsedRange.Rows.Count + 1):
-    mismatches = []
-    for h1, h2 in pairs:
-        col1 = header_pos.get(h1)
-        col2 = header_pos.get(h2)
-        v1 = str(ws.Cells(row, col1).Value or "").strip().lower()
-        v2 = str(ws.Cells(row, col2).Value or "").strip().lower()
-        if v1 != v2:
-            mismatches.append(f"{h1}≠{h2}")
-
-    ws.Cells(row, last_col).Value = "Pass" if not mismatches else "Fail - " + ", ".join(mismatches)
-
-# --- Optional: Save workbook ---
-wb.Save()  # Saves changes to the already opened workbook
+# Save to Excel with colors
+styled_df.to_excel("styled_result.xlsx", index=False, engine="openpyxl")
