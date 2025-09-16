@@ -1,22 +1,6 @@
-import pandas as pd
-
-# Sample DataFrame
-df = pd.DataFrame({
-    "Name": ["A", "B", "C", "D"],
-    "Status": ["pass", "fail", "", "pass"]
-})
-
-# Define styling function
-def highlight_status(val):
-    if pd.isna(val) or str(val).strip() == "":
-        return ""  # no style for blanks
-    if str(val).strip().lower() == "pass":
-        return "color: green;"  # green font
-    else:
-        return "color: red;"    # red font
-
-# Apply style only on Status column
-styled_df = df.style.applymap(highlight_status, subset=["Status"])
-
-# Save to Excel with colors
-styled_df.to_excel("styled_result.xlsx", index=False, engine="openpyxl")
+styled = df.style.applymap(
+    lambda v: "" if (pd.isna(v) or str(v).strip()=="")
+              else ("color: green;" if str(v).strip().lower()=="pass" else "color: red;"),
+    subset=["Status"]
+)
+styled.to_excel("styled_result.xlsx", index=False)
