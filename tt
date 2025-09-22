@@ -1,6 +1,28 @@
-styled = df.style.applymap(
-    lambda v: "" if (pd.isna(v) or str(v).strip()=="")
-              else ("color: green;" if str(v).strip().lower()=="pass" else "color: red;"),
-    subset=["Status"]
-)
-styled.to_excel("styled_result.xlsx", index=False)
+import os
+import pandas as pd
+from datetime import datetime
+
+# Example DataFrame
+df = pd.DataFrame({
+    "ID": [1, 2],
+    "Name": ["Alice", "Bob"],
+    "Value": [100, 200]
+})
+
+# File name with date
+base_name = "report"
+date_str = datetime.now().strftime("%Y%m%d")
+file_name = f"{base_name}_{date_str}.xlsx"
+
+# Check if file exists
+if os.path.exists(file_name):
+    # Append to existing sheet
+    with pd.ExcelWriter(file_name, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
+        # Find the last row in existing sheet
+        startrow = writer.sheets['Sheet1'].max_row
+        df.to_excel(writer, sheet_name="Sheet1", index=False, header=False, startrow=startrow)
+else:
+    # Create new file
+    df.to_excel(file_name, index=False)
+
+print(f"Data written to {file_name}")
