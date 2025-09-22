@@ -1,28 +1,73 @@
 import os
 import pandas as pd
+from openpyxl import load_workbook
 from datetime import datetime
 
-# Example DataFrame
-df = pd.DataFrame({
-    "ID": [1, 2],
-    "Name": ["Alice", "Bob"],
-    "Value": [100, 200]
-})
+def compare_excel(src_file, dest_file, rule_file, result_folder="results"):
+    os.makedirs(result_folder, exist_ok=True)
 
-# File name with date
-base_name = "report"
-date_str = datetime.now().strftime("%Y%m%d")
-file_name = f"{base_name}_{date_str}.xlsx"
+    # Load files
+    src_df = pd.read_excel(src_file, sheet_name=None)   # all sheets
+    dest_df = pd.read_excel(dest_file, sheet_name=None)
+    rule_df = pd.read_excel(rule_file)
 
-# Check if file exists
-if os.path.exists(file_name):
-    # Append to existing sheet
-    with pd.ExcelWriter(file_name, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
-        # Find the last row in existing sheet
-        startrow = writer.sheets['Sheet1'].max_row
-        df.to_excel(writer, sheet_name="Sheet1", index=False, header=False, startrow=startrow)
-else:
-    # Create new file
-    df.to_excel(file_name, index=False)
+    # Prepare result list
+    results = []
 
-print(f"Data written to {file_name}")
+    # Loop through rule mappings
+    for _, rule in rule_df.iterrows():
+        src_col = rule["src_col"]
+        dest_col = rule["dest_col"]
+        dest_sheet = rule["dest_sheet"]
+        test_col = rule["test_col"]  # test name column
+
+        for sheet_name, src_data in src_df.items():
+            if test_col not in src_data.columns or src_col not in src_data.columns:
+                continue
+
+            for _, row in src_data.iterrows():
+                test_name = row[test_col]
+                src_val = row[src_col]
+
+                # check in destination
+                if dest_sheet not in dest_df:
+                    status = "Dest sheet missing"
+                    dest_val = None
+                else:
+                    dest_data = dest_df[dest_sheet]
+                    if dest_col not in dest_data.columns:
+                        status = "Dest col missing"
+                        dest_val = None
+                    else:
+                        match = dest_data[dest_data[test_col] == test_name]
+                        if match.empty:
+                            status = "Test not found"
+                            dest_val = None
+                        else:
+                            dest_val = match[dest_col].iloc[0]
+                            status = "Pass" if src_val == dest_val else "Fail"
+
+                results.append({
+                    "test_name": test_name,
+                    "src_sheet": sheet_name,
+                    "src_val": src_val,
+                    "dest_sheet": dest_sheet,
+                    "dest_val": dest_val,
+                    "status": status
+                })
+
+    # Create results DataFrame
+    results_df = pd.DataFrame(results)
+
+    # Result file name
+    today = datetime.now().strftime("%Y%m%d")
+    result_file = os.path.join(result_folder, f"validation_results_{today}.xlsx")
+
+    # Save or append
+    if os.path.exists(result_file):
+        with pd.ExcelWriter(result_file, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
+            results_df.to_excel(writer, sheet_name="Results", index=False, header=False, startrow=writer.sheets["Results"].max_row)
+    else:
+        results_df.to_excel(result_file, sheet_name="Results", index=False)
+
+    print(f"Results saved in {result_file}")
