@@ -1,111 +1,63 @@
 import os
 import pandas as pd
-from openpyxl import load_workbook
 from datetime import datetime
 
-class ExcelValidator:
-    def __init__(self, src_file, dest_file, rule_file, test_data, result_folder="results"):
-        self.src_file = src_file
-        self.dest_file = dest_file
-        self.rule_file = rule_file
-        self.test_data = test_data   # e.g. {"tests": ["TC001", "TC002"]}
-        self.result_folder = result_folder
-        os.makedirs(result_folder, exist_ok=True)
+def validate_excel(src_file, dest_file, rule_file, test_data, result_folder="results"):
+    os.makedirs(result_folder, exist_ok=True)
 
-    def validate(self):
-        # Load Excel files
-        src_df = pd.read_excel(self.src_file, sheet_name=None)   # all source sheets
-        dest_df = pd.read_excel(self.dest_file, sheet_name=None) # all destination sheets
-        rule_df = pd.read_excel(self.rule_file)                  # rules (3 cols)
+    # load files
+    src_df = pd.read_excel(src_file)                      # one source sheet
+    dest_df = pd.read_excel(dest_file, sheet_name=None)   # all destination sheets
+    rules = pd.read_excel(rule_file)                      # 3 cols
 
-        results = []
+    results = []
 
-        for test_name in self.test_data.get("tests", []):
-            for _, rule in rule_df.iterrows():
-                src_col = rule["src_col"]
-                dest_col = rule["dest_col"]
-                dest_sheet = rule["dest_sheet"]
+    for test_name in test_data.get("tests", []):
+        # find row in source
+        row = src_df[src_df["TestName"] == test_name]
+        if row.empty:
+            results.append({"test": test_name, "status": "Not in source"})
+            continue
 
-                # --- Source lookup ---
-                found_src = False
-                src_val = None
-                src_sheet_name = None
-                for sheet_name, sheet_data in src_df.items():
-                    if "TestName" not in sheet_data.columns:
-                        continue
-                    match = sheet_data[sheet_data["TestName"] == test_name]
-                    if not match.empty and src_col in sheet_data.columns:
-                        src_val = match[src_col].iloc[0]
-                        src_sheet_name = sheet_name
-                        found_src = True
-                        break
+        for _, r in rules.iterrows():
+            src_col, dest_col, dest_sheet = r["src_col"], r["dest_col"], r["dest_sheet"]
 
-                if not found_src:
-                    results.append({
-                        "test": test_name,
-                        "src_sheet": None, "src_col": src_col, "src_val": None,
-                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
-                        "status": "Not found in source"
-                    })
-                    continue
+            if src_col not in src_df.columns:
+                results.append({"test": test_name, "src_val": None,
+                                "dest_sheet": dest_sheet, "dest_col": dest_col,
+                                "status": "Src col missing"})
+                continue
 
-                # --- Destination lookup ---
-                if dest_sheet not in dest_df:
-                    results.append({
-                        "test": test_name,
-                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
-                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
-                        "status": "Dest sheet missing"
-                    })
-                    continue
+            src_val = row[src_col].iloc[0]
 
-                dest_data = dest_df[dest_sheet]
-                if "TestName" not in dest_data.columns:
-                    results.append({
-                        "test": test_name,
-                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
-                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
-                        "status": "TestName col missing in dest"
-                    })
-                    continue
+            if dest_sheet not in dest_df:
+                results.append({"test": test_name, "src_val": src_val,
+                                "dest_sheet": dest_sheet, "dest_col": dest_col,
+                                "status": "Dest sheet missing"})
+                continue
 
-                dest_row = dest_data[dest_data["TestName"] == test_name]
-                if dest_row.empty or dest_col not in dest_data.columns:
-                    results.append({
-                        "test": test_name,
-                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
-                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
-                        "status": "Not found in dest"
-                    })
-                    continue
+            dest_data = dest_df[dest_sheet]
 
-                dest_val = dest_row[dest_col].iloc[0]
-                status = "Pass" if src_val == dest_val else "Fail"
+            if dest_col not in dest_data.columns:
+                results.append({"test": test_name, "src_val": src_val,
+                                "dest_sheet": dest_sheet, "dest_col": dest_col,
+                                "status": "Dest col missing"})
+                continue
 
-                results.append({
-                    "test": test_name,
-                    "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
-                    "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": dest_val,
-                    "status": status
-                })
+            # simple existence check
+            if src_val in dest_data[dest_col].values:
+                status, dest_val = "Pass", src_val
+            else:
+                status, dest_val = "Fail", None
 
-        # --- Save Results ---
-        results_df = pd.DataFrame(results)
-        today = datetime.now().strftime("%Y%m%d")
-        result_file = os.path.join(self.result_folder, f"validation_results_{today}.xlsx")
+            results.append({"test": test_name, "src_val": src_val,
+                            "dest_sheet": dest_sheet, "dest_col": dest_col,
+                            "dest_val": dest_val, "status": status})
 
-        if os.path.exists(result_file):
-            with pd.ExcelWriter(result_file, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
-                results_df.to_excel(writer, sheet_name="Results", index=False,
-                                    header=False, startrow=writer.sheets["Results"].max_row)
-        else:
-            results_df.to_excel(result_file, sheet_name="Results", index=False)
+    # save results
+    df = pd.DataFrame(results)
+    today = datetime.now().strftime("%Y%m%d")
+    result_file = os.path.join(result_folder, f"validation_results_{today}.xlsx")
+    df.to_excel(result_file, index=False)
 
-        print(f"✅ Results saved in {result_file}")
-
-
-# -------- Example Usage ----------
-if __name__ == "__main__":
-    test_data = {"tests": ["TC001", "TC002", "TC003"]}  # comes from self.test_data.get(...)
-    validator = ExcelValidator("source.xlsx", "destination.xlsx", "rules.xlsx", test_data)
-    validator.validate()
+    print(f"✅ Results saved: {result_file}")
