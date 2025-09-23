@@ -1,31 +1,111 @@
-for test_name in self.test_data.get("tests", []):
-    for _, rule in rule_df.iterrows():
-        src_col = rule["src_col"]
-        dest_col = rule["dest_col"]
-        dest_sheet = rule["dest_sheet"]
+import os
+import pandas as pd
+from openpyxl import load_workbook
+from datetime import datetime
 
-        # Find row in source by test_name
-        src_row = src_df[src_df["TestName"] == test_name]
-        if src_row.empty:
-            results.append({"test": test_name, "status": "Not found in source"})
-            continue
+class ExcelValidator:
+    def __init__(self, src_file, dest_file, rule_file, test_data, result_folder="results"):
+        self.src_file = src_file
+        self.dest_file = dest_file
+        self.rule_file = rule_file
+        self.test_data = test_data   # e.g. {"tests": ["TC001", "TC002"]}
+        self.result_folder = result_folder
+        os.makedirs(result_folder, exist_ok=True)
 
-        src_val = src_row[src_col].iloc[0]
+    def validate(self):
+        # Load Excel files
+        src_df = pd.read_excel(self.src_file, sheet_name=None)   # all source sheets
+        dest_df = pd.read_excel(self.dest_file, sheet_name=None) # all destination sheets
+        rule_df = pd.read_excel(self.rule_file)                  # rules (3 cols)
 
-        # Find row in destination by test_name
-        dest_data = dest_df[dest_sheet]
-        dest_row = dest_data[dest_data["TestName"] == test_name]
+        results = []
 
-        if dest_row.empty:
-            results.append({"test": test_name, "status": "Not found in dest"})
-            continue
+        for test_name in self.test_data.get("tests", []):
+            for _, rule in rule_df.iterrows():
+                src_col = rule["src_col"]
+                dest_col = rule["dest_col"]
+                dest_sheet = rule["dest_sheet"]
 
-        dest_val = dest_row[dest_col].iloc[0]
+                # --- Source lookup ---
+                found_src = False
+                src_val = None
+                src_sheet_name = None
+                for sheet_name, sheet_data in src_df.items():
+                    if "TestName" not in sheet_data.columns:
+                        continue
+                    match = sheet_data[sheet_data["TestName"] == test_name]
+                    if not match.empty and src_col in sheet_data.columns:
+                        src_val = match[src_col].iloc[0]
+                        src_sheet_name = sheet_name
+                        found_src = True
+                        break
 
-        status = "Pass" if src_val == dest_val else "Fail"
-        results.append({
-            "test": test_name,
-            "src_col": src_col, "src_val": src_val,
-            "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": dest_val,
-            "status": status
-        })
+                if not found_src:
+                    results.append({
+                        "test": test_name,
+                        "src_sheet": None, "src_col": src_col, "src_val": None,
+                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
+                        "status": "Not found in source"
+                    })
+                    continue
+
+                # --- Destination lookup ---
+                if dest_sheet not in dest_df:
+                    results.append({
+                        "test": test_name,
+                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
+                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
+                        "status": "Dest sheet missing"
+                    })
+                    continue
+
+                dest_data = dest_df[dest_sheet]
+                if "TestName" not in dest_data.columns:
+                    results.append({
+                        "test": test_name,
+                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
+                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
+                        "status": "TestName col missing in dest"
+                    })
+                    continue
+
+                dest_row = dest_data[dest_data["TestName"] == test_name]
+                if dest_row.empty or dest_col not in dest_data.columns:
+                    results.append({
+                        "test": test_name,
+                        "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
+                        "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": None,
+                        "status": "Not found in dest"
+                    })
+                    continue
+
+                dest_val = dest_row[dest_col].iloc[0]
+                status = "Pass" if src_val == dest_val else "Fail"
+
+                results.append({
+                    "test": test_name,
+                    "src_sheet": src_sheet_name, "src_col": src_col, "src_val": src_val,
+                    "dest_sheet": dest_sheet, "dest_col": dest_col, "dest_val": dest_val,
+                    "status": status
+                })
+
+        # --- Save Results ---
+        results_df = pd.DataFrame(results)
+        today = datetime.now().strftime("%Y%m%d")
+        result_file = os.path.join(self.result_folder, f"validation_results_{today}.xlsx")
+
+        if os.path.exists(result_file):
+            with pd.ExcelWriter(result_file, mode="a", engine="openpyxl", if_sheet_exists="overlay") as writer:
+                results_df.to_excel(writer, sheet_name="Results", index=False,
+                                    header=False, startrow=writer.sheets["Results"].max_row)
+        else:
+            results_df.to_excel(result_file, sheet_name="Results", index=False)
+
+        print(f"✅ Results saved in {result_file}")
+
+
+# -------- Example Usage ----------
+if __name__ == "__main__":
+    test_data = {"tests": ["TC001", "TC002", "TC003"]}  # comes from self.test_data.get(...)
+    validator = ExcelValidator("source.xlsx", "destination.xlsx", "rules.xlsx", test_data)
+    validator.validate()
