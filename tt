@@ -1,63 +1,39 @@
-import os
+# simple_xlsx_to_html.py
 import pandas as pd
-from datetime import datetime
 
-def validate_excel(src_file, dest_file, rule_file, test_data, result_folder="results"):
-    os.makedirs(result_folder, exist_ok=True)
+# Load your Excel file
+excel_file = "input.xlsx"
+sheets = pd.read_excel(excel_file, sheet_name=None)
 
-    # load files
-    src_df = pd.read_excel(src_file)                      # one source sheet
-    dest_df = pd.read_excel(dest_file, sheet_name=None)   # all destination sheets
-    rules = pd.read_excel(rule_file)                      # 3 cols
+# Start HTML content
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Excel Report</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+th { background-color: #007bff; color: white; }
+h2 { color: #333; }
+</style>
+</head>
+<body>
+<h1>Excel Report</h1>
+"""
 
-    results = []
+# Add each sheet as a table
+for sheet_name, df in sheets.items():
+    html_content += f"<h2>{sheet_name}</h2>\n"
+    html_content += df.to_html(index=False, border=0)
 
-    for test_name in test_data.get("tests", []):
-        # find row in source
-        row = src_df[src_df["TestName"] == test_name]
-        if row.empty:
-            results.append({"test": test_name, "status": "Not in source"})
-            continue
+# End HTML
+html_content += "</body></html>"
 
-        for _, r in rules.iterrows():
-            src_col, dest_col, dest_sheet = r["src_col"], r["dest_col"], r["dest_sheet"]
+# Save HTML file
+with open("report.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
 
-            if src_col not in src_df.columns:
-                results.append({"test": test_name, "src_val": None,
-                                "dest_sheet": dest_sheet, "dest_col": dest_col,
-                                "status": "Src col missing"})
-                continue
-
-            src_val = row[src_col].iloc[0]
-
-            if dest_sheet not in dest_df:
-                results.append({"test": test_name, "src_val": src_val,
-                                "dest_sheet": dest_sheet, "dest_col": dest_col,
-                                "status": "Dest sheet missing"})
-                continue
-
-            dest_data = dest_df[dest_sheet]
-
-            if dest_col not in dest_data.columns:
-                results.append({"test": test_name, "src_val": src_val,
-                                "dest_sheet": dest_sheet, "dest_col": dest_col,
-                                "status": "Dest col missing"})
-                continue
-
-            # simple existence check
-            if src_val in dest_data[dest_col].values:
-                status, dest_val = "Pass", src_val
-            else:
-                status, dest_val = "Fail", None
-
-            results.append({"test": test_name, "src_val": src_val,
-                            "dest_sheet": dest_sheet, "dest_col": dest_col,
-                            "dest_val": dest_val, "status": status})
-
-    # save results
-    df = pd.DataFrame(results)
-    today = datetime.now().strftime("%Y%m%d")
-    result_file = os.path.join(result_folder, f"validation_results_{today}.xlsx")
-    df.to_excel(result_file, index=False)
-
-    print(f"✅ Results saved: {result_file}")
+print("Saved report.html")
