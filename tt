@@ -1,41 +1,27 @@
 import pandas as pd
 import json
 
-# --- Load Excel files ---
-rule_df = pd.read_excel("rule.xlsx")         # has columns: json_field, xls_field
-data_df = pd.read_excel("test_data.xlsx")    # actual Excel data
-
-# --- Load JSON file ---
-with open("data.json", "r", encoding="utf-8") as f:
-    json_data = json.load(f)
-
-def get_json_value(data, path):
-    """Fetch nested value from JSON path like a.b[0].c"""
-    parts = path.split(".")
-    for p in parts:
-        if "[" in p and "]" in p:
-            key, idx = p.split("[")
-            data = data[key][int(idx[:-1])]
-        else:
-            data = data[p]
-    return data
-
-# --- Pick test row (e.g., row index 0 for first test) ---
-row = data_df.iloc[0]  # change to iloc[1] for next row, etc.
-
-# --- Compare each field ---
-all_pass = True
-for _, rule in rule_df.iterrows():
-    json_path = rule["json_field"]
-    xls_col = rule["xls_field"]
-
-    json_value = get_json_value(json_data, json_path)
-    excel_value = row[xls_col]
-
-    if str(json_value) == str(excel_value):
-        print(f"✅ PASS: {json_path} == {xls_col} ({json_value})")
-    else:
-        print(f"❌ FAIL: {json_path} != {xls_col} (JSON={json_value}, Excel={excel_value})")
-        all_pass = False
-
-print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
+def compare_json_with_excel(rule_excel, json_file, data_excel, test_identifier):
+    """
+    Compare JSON values with Excel values using a mapping rule Excel.
+    
+    rule_excel → has columns: json_field | xls_field
+    json_file → JSON file path
+    data_excel → Excel file containing test data
+    test_identifier → either row index (int) or value in first column (str/int)
+    """
+    
+    # --- Load rule file ---
+    rule_df = pd.read_excel(rule_excel)
+    
+    # --- Load data Excel ---
+    data_df = pd.read_excel(data_excel)
+    
+    # --- Load JSON ---
+    with open(json_file, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    
+    # --- Select test row ---
+    if isinstance(test_identifier, int):  # by index
+        row = data_df.iloc[test_identifier]
+    else:  # by test ID (assuming
