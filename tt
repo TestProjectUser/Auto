@@ -1,67 +1,57 @@
-import pandas as pd
 import json
+import pandas as pd
+from playwright.sync_api import Page, expect
 
-def compare_json_with_excel(rule_excel, json_file, data_excel, test_identifier):
-    """
-    Compare JSON values with Excel values using a mapping rule Excel.
-    
-    rule_excel → has columns: json_field | xls_field
-    json_file → JSON file path
-    data_excel → Excel file containing test data
-    test_identifier → either row index (int) or value in first column (str/int)
-    """
-    
-    # --- Load rule file ---
-    rule_df = pd.read_excel(rule_excel)
-    
-    # --- Load data Excel ---
-    data_df = pd.read_excel(data_excel)
-    
-    # --- Load JSON ---
-    with open(json_file, "r", encoding="utf-8") as f:
-        json_data = json.load(f)
-    
-    # --- Select test row ---
-    if isinstance(test_identifier, int):  # by index
-        row = data_df.iloc[test_identifier]
-    else:  # by test ID (assuming first column holds ID)
+class JsonExcelComparator:
+    def __init__(self, page: Page):
+        self.page = page
+        self.test_data = None  # you’ll set this before comparing
+
+    def compare_json_with_excel(self, rule_excel, json_file, data_excel):
+        """
+        Compare JSON values with Excel using rule mapping.
+        Picks test row based on self.test_data['TestID'] (or similar).
+        """
+
+        # --- Load rule + data + JSON ---
+        rule_df = pd.read_excel(rule_excel)
+        data_df = pd.read_excel(data_excel)
+
+        with open(json_file, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+
+        # --- Identify test row ---
+        test_id = self.test_data.get("TestID")  # assume you store test ID in test_data
         first_col = data_df.columns[0]
-        row = data_df[data_df[first_col] == test_identifier].iloc[0]
-    
-    # --- Helper function to get nested JSON value ---
-    def get_json_value(data, path):
-        parts = path.split(".")
-        for p in parts:
-            if "[" in p and "]" in p:
-                key, idx = p.split("[")
-                data = data[key][int(idx[:-1])]
+        row = data_df[data_df[first_col] == test_id].iloc[0]
+
+        # --- JSON path extractor ---
+        def get_json_value(data, path):
+            parts = path.split(".")
+            for p in parts:
+                if "[" in p and "]" in p:
+                    key, idx = p.split("[")
+                    data = data[key][int(idx[:-1])]
+                else:
+                    data = data[p]
+            return data
+
+        # --- Compare JSON and Excel ---
+        print(f"\n🔍 Comparing JSON vs Excel for Test ID: {test_id}\n")
+        all_pass = True
+
+        for _, rule in rule_df.iterrows():
+            json_path = rule["json_field"]
+            xls_col = rule["xls_field"]
+
+            json_value = get_json_value(json_data, json_path)
+            excel_value = row[xls_col]
+
+            if str(json_value) == str(excel_value):
+                print(f"✅ PASS: {json_path} == {xls_col} → {json_value}")
             else:
-                data = data[p]
-        return data
-    
-    # --- Compare values ---
-    all_pass = True
-    print(f"\n🔍 Comparing JSON vs Excel for test '{test_identifier}'\n")
-    
-    for _, rule in rule_df.iterrows():
-        json_path = rule["json_field"]
-        xls_col = rule["xls_field"]
+                print(f"❌ FAIL: {json_path} != {xls_col} → JSON={json_value}, Excel={excel_value}")
+                all_pass = False
 
-        json_value = get_json_value(json_data, json_path)
-        excel_value = row[xls_col]
-
-        if str(json_value) == str(excel_value):
-            print(f"✅ PASS: {json_path} == {xls_col} → {json_value}")
-        else:
-            print(f"❌ FAIL: {json_path} != {xls_col} → JSON={json_value}, Excel={excel_value}")
-            all_pass = False
-
-    print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
-
-# --- Example usage ---
-compare_json_with_excel(
-    rule_excel="rule.xlsx",
-    json_file="data.json",
-    data_excel="test_data.xlsx",
-    test_identifier="1"   # can also use 0 (for first row)
-)
+        print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
+        return all_pass
