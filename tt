@@ -24,4 +24,44 @@ def compare_json_with_excel(rule_excel, json_file, data_excel, test_identifier):
     # --- Select test row ---
     if isinstance(test_identifier, int):  # by index
         row = data_df.iloc[test_identifier]
-    else:  # by test ID (assuming
+    else:  # by test ID (assuming first column holds ID)
+        first_col = data_df.columns[0]
+        row = data_df[data_df[first_col] == test_identifier].iloc[0]
+    
+    # --- Helper function to get nested JSON value ---
+    def get_json_value(data, path):
+        parts = path.split(".")
+        for p in parts:
+            if "[" in p and "]" in p:
+                key, idx = p.split("[")
+                data = data[key][int(idx[:-1])]
+            else:
+                data = data[p]
+        return data
+    
+    # --- Compare values ---
+    all_pass = True
+    print(f"\n🔍 Comparing JSON vs Excel for test '{test_identifier}'\n")
+    
+    for _, rule in rule_df.iterrows():
+        json_path = rule["json_field"]
+        xls_col = rule["xls_field"]
+
+        json_value = get_json_value(json_data, json_path)
+        excel_value = row[xls_col]
+
+        if str(json_value) == str(excel_value):
+            print(f"✅ PASS: {json_path} == {xls_col} → {json_value}")
+        else:
+            print(f"❌ FAIL: {json_path} != {xls_col} → JSON={json_value}, Excel={excel_value}")
+            all_pass = False
+
+    print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
+
+# --- Example usage ---
+compare_json_with_excel(
+    rule_excel="rule.xlsx",
+    json_file="data.json",
+    data_excel="test_data.xlsx",
+    test_identifier="1"   # can also use 0 (for first row)
+)
