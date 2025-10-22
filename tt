@@ -1,72 +1,41 @@
 import pandas as pd
+import json
 
-# Load Excel
-df = pd.read_excel("report.xlsx")
+# --- Load Excel files ---
+rule_df = pd.read_excel("rule.xlsx")         # has columns: json_field, xls_field
+data_df = pd.read_excel("test_data.xlsx")    # actual Excel data
 
-# Apply inline lambda to color Status column
-styled_df = df.style.applymap(
-    lambda x: 'color: green; font-weight: bold' if str(x).lower() == 'pass' 
-              else 'color: red; font-weight: bold' if str(x).lower() == 'fail' 
-              else 'color: black', 
-    subset=['Status']  # Replace 'Status' with your column name
-)
+# --- Load JSON file ---
+with open("data.json", "r", encoding="utf-8") as f:
+    json_data = json.load(f)
 
-# Convert to HTML
-html_content = styled_df.render()
+def get_json_value(data, path):
+    """Fetch nested value from JSON path like a.b[0].c"""
+    parts = path.split(".")
+    for p in parts:
+        if "[" in p and "]" in p:
+            key, idx = p.split("[")
+            data = data[key][int(idx[:-1])]
+        else:
+            data = data[p]
+    return data
 
-# File path
-fpath = "."  # folder
-file = "report.html"
-var1 = f"{fpath}/{file}"
+# --- Pick test row (e.g., row index 0 for first test) ---
+row = data_df.iloc[0]  # change to iloc[1] for next row, etc.
 
-# HTML template with table fitting page width
-html_template = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Excel Report</title>
-<style>
-    body {{
-        font-family: Arial, sans-serif;
-        background-color: #f4f7f9;
-        padding: 20px;
-    }}
-    h2 {{
-        text-align: center;
-        color: #333;
-    }}
-    table {{
-        border-collapse: collapse;
-        width: 100%;
-        table-layout: fixed;  
-        word-wrap: break-word; 
-        background: white;
-        box-shadow: 0px 3px 6px rgba(0,0,0,0.1);
-    }}
-    th, td {{
-        border: 1px solid #ddd;
-        padding: 10px;
-        text-align: center;
-        overflow: hidden;
-    }}
-    th {{
-        background-color: #4CAF50;
-        color: white;
-    }}
-    tr:nth-child(even) {{ background-color: #f2f2f2; }}
-    tr:hover {{ background-color: #ddd; }}
-</style>
-</head>
-<body>
-    <h2>Excel Report</h2>
-    {html_content}
-</body>
-</html>
-"""
+# --- Compare each field ---
+all_pass = True
+for _, rule in rule_df.iterrows():
+    json_path = rule["json_field"]
+    xls_col = rule["xls_field"]
 
-# Save HTML
-with open(var1, "w", encoding="utf-8") as f:
-    f.write(html_template)
+    json_value = get_json_value(json_data, json_path)
+    excel_value = row[xls_col]
 
-print(f"✅ Report saved as {var1}, fits page width without scroll")
+    if str(json_value) == str(excel_value):
+        print(f"✅ PASS: {json_path} == {xls_col} ({json_value})")
+    else:
+        print(f"❌ FAIL: {json_path} != {xls_col} (JSON={json_value}, Excel={excel_value})")
+        all_pass = False
+
+print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
