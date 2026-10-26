@@ -1,57 +1,243 @@
-import json
-import pandas as pd
-from playwright.sync_api import Page, expect
+Task: Create an AI Agent Testing Strategy for Banking Applications
 
-class JsonExcelComparator:
-    def __init__(self, page: Page):
-        self.page = page
-        self.test_data = None  # you’ll set this before comparing
+Act as a Senior QA Architect and AI Testing Specialist with experience in banking applications, AI agent evaluation, test automation, risk management, and AWS-hosted AI systems.
 
-    def compare_json_with_excel(self, rule_excel, json_file, data_excel):
-        """
-        Compare JSON values with Excel using rule mapping.
-        Picks test row based on self.test_data['TestID'] (or similar).
-        """
+1. Project Background
 
-        # --- Load rule + data + JSON ---
-        rule_df = pd.read_excel(rule_excel)
-        data_df = pd.read_excel(data_excel)
+Our bank's Development team has built three AI agents using a custom-built AI framework hosted on AWS.
 
-        with open(json_file, "r", encoding="utf-8") as f:
-            json_data = json.load(f)
+The agents belong to the Banking Collection Module:
 
-        # --- Identify test row ---
-        test_id = self.test_data.get("TestID")  # assume you store test ID in test_data
-        first_col = data_df.columns[0]
-        row = data_df[data_df[first_col] == test_id].iloc[0]
+1. Knowledge Assistance Agent — answers questions using bank policies, procedures, and other approved documents.
+2. Deposit Pattern Analysis Agent — analyses customer deposit and payment patterns and explains its findings.
+3. Risk Recommendations Agent — provides risk-related recommendations based on customer information, transaction data, policies, and business rules.
 
-        # --- JSON path extractor ---
-        def get_json_value(data, path):
-            parts = path.split(".")
-            for p in parts:
-                if "[" in p and "]" in p:
-                    key, idx = p.split("[")
-                    data = data[key][int(idx[:-1])]
-                else:
-                    data = data[p]
-            return data
+The agents use documents stored in SharePoint or shared folders, including PDF and Word documents.
 
-        # --- Compare JSON and Excel ---
-        print(f"\n🔍 Comparing JSON vs Excel for Test ID: {test_id}\n")
-        all_pass = True
+The agents answer both document/policy questions and customer-specific questions involving data such as balances, deposits, and payment history.
 
-        for _, rule in rule_df.iterrows():
-            json_path = rule["json_field"]
-            xls_col = rule["xls_field"]
+The Development team has a master prompt for the existing agents. The underlying framework is custom-built and hosted on AWS. Do not assume that Amazon Bedrock or any particular AWS service is used.
 
-            json_value = get_json_value(json_data, json_path)
-            excel_value = row[xls_col]
+The QA team wants to develop an independent AI Testing Agent and an automation framework to reduce manual validation of AI-generated responses.
 
-            if str(json_value) == str(excel_value):
-                print(f"✅ PASS: {json_path} == {xls_col} → {json_value}")
-            else:
-                print(f"❌ FAIL: {json_path} != {xls_col} → JSON={json_value}, Excel={excel_value}")
-                all_pass = False
+2. Objective
 
-        print("\nFINAL RESULT:", "PASS ✅" if all_pass else "FAIL ❌")
-        return all_pass
+Create a comprehensive, implementation-ready AI Agent Testing Strategy document that explains how QA will:
+
+- Generate test cases using AI.
+- Execute test cases against the three existing banking AI agents.
+- Validate AI-generated answers independently against trusted sources.
+- Automate functional, negative, boundary, regression, security, and non-functional testing.
+- Evaluate answer accuracy, completeness, relevance, consistency, grounding, and appropriate handling of missing information.
+- Produce traceable test results and evidence.
+- Reduce repetitive manual testing while retaining human review for ambiguous or high-risk results.
+
+3. Proposed QA Solution
+
+Design a reusable solution consisting of the following components:
+
+A. AI Test Case Generator
+
+- Generates test scenarios from approved requirements, master prompts, policy documents, business rules, and representative test data.
+- Creates positive, negative, boundary, edge, ambiguity, security, and regression tests.
+- Generates structured test cases with IDs, preconditions, inputs, expected results, validation rules, severity, and traceability.
+- Identifies gaps in requirements and asks for clarification rather than inventing expected results.
+
+B. Automation Framework
+
+- Use Python and pytest as the preferred baseline, subject to confirmation of the bank's environment.
+- Support API-based execution if the existing agents expose approved test APIs.
+- Provide a UI automation alternative if API access is unavailable.
+- Support configuration, test data management, reusable fixtures, logging, retries where appropriate, and environment-specific execution.
+- Integrate with CI/CD if approved.
+
+C. AI Response Validation Engine
+
+- Compare responses against authoritative policy documents, verified customer test data, approved business rules, and independently calculated expected results.
+- Use deterministic assertions for amounts, dates, calculations, required fields, and business rules.
+- Use an LLM-based evaluator for semantic qualities such as relevance, completeness, clarity, and groundedness.
+- Avoid using the target agent as the sole judge of its own response.
+- Return PASS, FAIL, REVIEW, or BLOCKED with reasons and evidence.
+- Never invent expected answers when authoritative evidence is unavailable.
+
+D. Test Reporting
+
+- Produce machine-readable test results and a human-readable HTML report.
+- Consider Allure reporting and Excel output as optional extensions.
+- Include test case ID, target agent, test input, expected result, actual response, validation results, source evidence, execution time, and defect severity.
+- Distinguish an actual agent failure from an unavailable dependency, missing evidence, or evaluator uncertainty.
+
+4. Agent-Specific Test Strategy
+
+Create separate testing approaches for:
+
+Knowledge Assistance
+
+Cover:
+
+- Correct policy answers.
+- Incorrect or unsupported answers.
+- Missing documents.
+- Outdated or conflicting policy versions.
+- Incorrect citations or source references.
+- Questions outside the agent's scope.
+- Ambiguous questions and insufficient evidence.
+- Prompt injection and attempts to override policy instructions.
+
+Deposit Pattern Analysis
+
+Cover:
+
+- Regular and irregular deposits.
+- Missing, duplicated, incomplete, and out-of-order transactions.
+- Incorrect totals, date ranges, and calculations.
+- Changes in deposit patterns.
+- Insufficient historical data.
+- Unsupported conclusions.
+- Consistency between source transactions and generated explanations.
+
+Risk Recommendations
+
+Cover:
+
+- Valid risk scenarios.
+- Incomplete or inconsistent customer data.
+- Recommendations inconsistent with approved policy.
+- Incorrect risk classification.
+- Missing supporting evidence.
+- Conflicting business rules.
+- Uncertainty and appropriate escalation.
+- Fairness, privacy, access control, and unsafe recommendations.
+
+Do not invent bank-specific thresholds, risk rules, policies, or formulas. Use clearly labelled illustrative examples when actual requirements are not available.
+
+5. Cross-Agent Testing
+
+Include:
+
+- Common questions across agents.
+- Contradictory responses between agents.
+- Shared document and data consistency.
+- Regression after master-prompt, model, framework, document, or business-rule changes.
+- Version tracking and reproducibility.
+- Prevention of customer-data leakage between test cases.
+
+6. Test Case Design
+
+Define a standard test case schema containing:
+
+- Test case ID
+- Agent name
+- Test category
+- Requirement or source reference
+- Test objective
+- Preconditions
+- Input question or request
+- Required test data
+- Expected answer or expected behavior
+- Deterministic assertions
+- Semantic evaluation criteria
+- Expected source evidence
+- Severity and priority
+- Automation status
+- Actual result
+- Final status
+- Execution evidence
+
+Explain how the AI Test Case Generator proposes tests and how QA approves or rejects them before adding them to the regression suite.
+
+Include at least five illustrative test cases for each of the three agents.
+
+7. Architecture and Technical Design
+
+Provide:
+
+- A logical architecture diagram using Mermaid.
+- Component responsibilities and data flow.
+- Suggested Python project folder structure.
+- Responsibilities of the test generator, executor, validators, test data manager, evidence collector, and reporting module.
+- Integration points with existing agents, SharePoint, AWS-hosted services, and backend data sources.
+- A phased design that works even if API access is not yet confirmed.
+
+Do not assume that APIs, source retrieval endpoints, logs, or backend verification services exist. Mark these as dependencies requiring confirmation from Development.
+
+8. Security and Banking Controls
+
+Address:
+
+- Use of synthetic or masked customer data in QA.
+- Read-only access to verification data.
+- Secrets and credentials management.
+- Least-privilege access.
+- Secure storage of logs and reports.
+- Prompt injection and sensitive-data disclosure.
+- Auditability and evidence retention.
+- Restrictions against executing financial transactions or changing customer records.
+- Human approval for high-risk or ambiguous findings.
+
+9. Non-Functional Testing
+
+Cover latency, reliability, repeated-run consistency, concurrency, rate limits, error handling, dependency failures, and recovery.
+
+Explain how to measure these without confusing model variability with application failures.
+
+10. Metrics and Exit Criteria
+
+Define measurable metrics such as:
+
+- Test case coverage.
+- Percentage of automated tests.
+- Accuracy of deterministic validations.
+- Supported-claim and citation accuracy.
+- Unsupported-answer rate.
+- False-positive and false-negative rates of the evaluator.
+- Regression pass rate.
+- Response latency and failure rate.
+- Human-review rate.
+
+Do not prescribe arbitrary banking acceptance thresholds as established facts. Recommend that thresholds be approved by QA, Development, business owners, and model-risk or compliance stakeholders as applicable.
+
+11. Implementation Roadmap
+
+Create a phased roadmap:
+
+Phase 1: Confirm access, architecture, trusted sources, and test environment.
+
+Phase 2: Build a proof of concept for Knowledge Assistance.
+
+Phase 3: Add test case generation and automated execution.
+
+Phase 4: Add independent validation and reporting.
+
+Phase 5: Extend to Deposit Pattern Analysis and Risk Recommendations.
+
+Phase 6: Add regression scheduling, CI/CD, monitoring, and governance.
+
+For each phase, define deliverables, dependencies, acceptance criteria, and risks.
+
+12. Development Team Questions
+
+Include a checklist to confirm:
+
+- Whether the agents expose APIs or are UI-only.
+- Authentication and QA environment access.
+- Access to the master prompts and prompt versions.
+- SharePoint document access and document version metadata.
+- Whether retrieval results and source citations can be obtained.
+- Whether a read-only backend verification API or synthetic datasets are available.
+- Access to agent logs, tool calls, model identifiers, and execution metadata.
+- Rate limits, test-data restrictions, and security requirements.
+
+13. Deliverable Requirements
+
+Create a professional Markdown document named:
+
+AI_Agent_Test_Strategy.md
+
+Use clear headings, tables, Mermaid diagrams, practical examples, assumptions, risks, dependencies, and actionable recommendations.
+
+The document must be detailed enough for a QA team to use as an implementation blueprint, but it must clearly distinguish confirmed project facts from assumptions and items requiring Development confirmation.
+
+Do not implement the framework yet. Do not create production code. First create the strategy document, then review it for completeness, consistency, and missing dependencies.
+
+If repository context is available, inspect the existing project structure before deciding where to save the document. Do not overwrite existing files without checking them first.
